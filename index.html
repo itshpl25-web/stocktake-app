@@ -290,12 +290,20 @@
   // ── CONFIG ──────────────────────────────────────────
   const API_URL = "https://script.google.com/macros/s/AKfycbxOe5ZDUJfIkLX9W5JwZiuGZriUFi5YRiHl_EeWSzlSUDPCtaXCIOjcdFRY5qc_6Yw/exec";
 
+  // ── WARM UP ─────────────────────────────────────────
+  // Silently ping the API on page load so it's awake
+  // before the first real scan
+  function warmUp() {
+    fetch(`${API_URL}?action=lookup&barcode=warmup`)
+      .catch(() => {}); // ignore errors — this is just a wake-up call
+  }
+
   // ── STATE ───────────────────────────────────────────
-  let gondola      = "";
+  let gondola        = "";
   let currentProduct = null;
-  let sessionLog   = [];
-  let codeReader   = null;
-  let cameraActive = false;
+  let sessionLog     = [];
+  let codeReader     = null;
+  let cameraActive   = false;
 
   // ── GONDOLA SETUP ───────────────────────────────────
   function setGondola() {
@@ -306,6 +314,7 @@
     document.getElementById("tab-bar").style.display = "flex";
     showScreen("screen-scan");
     showTab("scan");
+    warmUp(); // ping API as soon as session starts
   }
 
   // ── TABS ────────────────────────────────────────────
@@ -336,7 +345,7 @@
           const barcode = result.getText();
           stopCamera();
           document.getElementById("barcode-input").value = barcode;
-          setStatus("success", "Barcode scanned: " + barcode);
+          setStatus("loading", "⏳ Looking up barcode...");
           lookupBarcode();
         }
       });
@@ -358,17 +367,20 @@
     const barcode = document.getElementById("barcode-input").value.trim();
     if (!barcode) { alert("Please enter or scan a barcode."); return; }
 
-    setStatus("loading", "🔍 Looking up barcode...");
+    setStatus("loading", "⏳ Looking up product...");
     hideProduct();
+
+    const start = Date.now();
 
     try {
       const res  = await fetch(`${API_URL}?action=lookup&barcode=${barcode}`);
       const data = await res.json();
+      const took = ((Date.now() - start) / 1000).toFixed(1);
 
       if (data.found) {
         currentProduct = data;
         showProduct(data);
-        setStatus("success", "✅ Product found!");
+        setStatus("success", `✅ Product found! (${took}s)`);
       } else {
         setStatus("error", "❌ Barcode not found in MASTER LIST.");
         currentProduct = null;
@@ -477,6 +489,3 @@
     document.getElementById("tab-bar").style.display = "none";
     showScreen("screen-setup");
   }
-</script>
-</body>
-</html>
