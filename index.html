@@ -7,57 +7,220 @@
   <script src="https://unpkg.com/@zxing/library@latest/umd/index.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: sans-serif; background: #f0f2f5; color: #1a1a1a; min-height: 100vh; }
-    .header { background: #1a73e8; color: white; padding: 16px 20px; font-size: 18px; font-weight: bold; display: flex; align-items: center; justify-content: space-between; }
-    .gondola-badge { background: rgba(255,255,255,0.25); padding: 4px 12px; border-radius: 20px; font-size: 14px; }
+
+    body {
+      font-family: sans-serif;
+      background: #f0f2f5;
+      color: #1a1a1a;
+      min-height: 100vh;
+    }
+
+    .header {
+      background: #1a73e8;
+      color: white;
+      padding: 16px 20px;
+      font-size: 18px;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .gondola-badge {
+      background: rgba(255,255,255,0.25);
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 14px;
+    }
+
     .screen { display: none; padding: 20px; }
     .screen.active { display: block; }
-    .card { background: white; border-radius: 12px; padding: 20px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
-    .card h2 { font-size: 16px; color: #444; margin-bottom: 16px; }
-    input[type="text"], input[type="number"] { width: 100%; padding: 12px 14px; border: 1.5px solid #ddd; border-radius: 8px; font-size: 16px; margin-bottom: 12px; outline: none; transition: border 0.2s; }
+
+    .card {
+      background: white;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 16px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    }
+
+    .card h2 {
+      font-size: 16px;
+      color: #444;
+      margin-bottom: 16px;
+    }
+
+    input[type="text"], input[type="number"] {
+      width: 100%;
+      padding: 12px 14px;
+      border: 1.5px solid #ddd;
+      border-radius: 8px;
+      font-size: 16px;
+      margin-bottom: 12px;
+      outline: none;
+      transition: border 0.2s;
+    }
+
     input:focus { border-color: #1a73e8; }
-    .btn { width: 100%; padding: 14px; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; margin-bottom: 10px; transition: opacity 0.2s; }
+
+    .btn {
+      width: 100%;
+      padding: 14px;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      margin-bottom: 10px;
+      transition: opacity 0.2s;
+    }
+
     .btn:active { opacity: 0.8; }
     .btn-primary { background: #1a73e8; color: white; }
     .btn-success { background: #34a853; color: white; }
-    .btn-outline { background: white; color: #1a73e8; border: 1.5px solid #1a73e8; }
+    .btn-outline {
+      background: white;
+      color: #1a73e8;
+      border: 1.5px solid #1a73e8;
+    }
     .btn-danger { background: #ea4335; color: white; }
     .btn-gray { background: #e0e0e0; color: #444; }
-    .product-info { background: #e8f5e9; border-radius: 8px; padding: 14px; margin-bottom: 14px; }
-    .product-info p { font-size: 14px; color: #333; margin-bottom: 6px; line-height: 1.5; }
-    .product-info .product-name { font-size: 16px; font-weight: bold; color: #1a1a1a; margin-bottom: 8px; }
-    .badge { display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: 12px; font-weight: bold; background: #1a73e8; color: white; margin-right: 6px; }
-    #video-container { display: none; margin-bottom: 14px; }
+
+    .product-info {
+      background: #e8f5e9;
+      border-radius: 8px;
+      padding: 14px;
+      margin-bottom: 14px;
+      display: none;
+    }
+
+    .product-info.visible { display: block; }
+
+    .product-info p {
+      font-size: 14px;
+      color: #333;
+      margin-bottom: 6px;
+      line-height: 1.5;
+    }
+
+    .product-info .product-name {
+      font-size: 16px;
+      font-weight: bold;
+      color: #1a1a1a;
+      margin-bottom: 8px;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: bold;
+      background: #1a73e8;
+      color: white;
+      margin-right: 6px;
+    }
+
+    #video-container {
+      display: none;
+      margin-bottom: 14px;
+    }
+
     #video-container.visible { display: block; }
-    video { width: 100%; border-radius: 8px; background: #000; }
-    .scan-hint { text-align: center; font-size: 13px; color: #888; margin-top: 6px; }
-    .status { text-align: center; padding: 10px; border-radius: 8px; font-size: 14px; margin-bottom: 12px; display: none; }
+
+    video {
+      width: 100%;
+      border-radius: 8px;
+      background: #000;
+    }
+
+    .scan-hint {
+      text-align: center;
+      font-size: 13px;
+      color: #888;
+      margin-top: 6px;
+    }
+
+    .status {
+      text-align: center;
+      padding: 10px;
+      border-radius: 8px;
+      font-size: 14px;
+      margin-bottom: 12px;
+      display: none;
+    }
+
     .status.visible { display: block; }
     .status.loading { background: #fff3cd; color: #856404; }
     .status.success { background: #d4edda; color: #155724; }
-    .status.error { background: #f8d7da; color: #721c24; }
-    .log-list { list-style: none; max-height: 300px; overflow-y: auto; }
-    .log-item { padding: 10px 0; border-bottom: 1px solid #f0f0f0; font-size: 14px; }
+    .status.error   { background: #f8d7da; color: #721c24; }
+
+    .log-list {
+      list-style: none;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+
+    .log-item {
+      padding: 10px 0;
+      border-bottom: 1px solid #f0f0f0;
+      font-size: 14px;
+    }
+
     .log-item:last-child { border-bottom: none; }
     .log-item .log-name { font-weight: bold; color: #1a1a1a; }
     .log-item .log-meta { color: #888; font-size: 12px; margin-top: 2px; }
-    .tab-bar { position: fixed; bottom: 0; left: 0; right: 0; background: white; display: flex; border-top: 1px solid #e0e0e0; z-index: 100; }
-    .tab { flex: 1; padding: 12px 0; text-align: center; font-size: 12px; color: #888; cursor: pointer; border: none; background: none; }
+
+    .empty-log {
+      text-align: center;
+      color: #aaa;
+      font-size: 14px;
+      padding: 20px 0;
+    }
+
+    .tab-bar {
+      position: fixed;
+      bottom: 0;
+      left: 0; right: 0;
+      background: white;
+      display: flex;
+      border-top: 1px solid #e0e0e0;
+      z-index: 100;
+    }
+
+    .tab {
+      flex: 1;
+      padding: 12px 0;
+      text-align: center;
+      font-size: 12px;
+      color: #888;
+      cursor: pointer;
+      border: none;
+      background: none;
+    }
+
     .tab.active { color: #1a73e8; font-weight: bold; }
     .tab .tab-icon { font-size: 20px; display: block; }
+
     .page-content { padding-bottom: 70px; }
-    .divider { text-align: center; color: #aaa; font-size: 13px; margin: 4px 0 12px; }
-    .empty-log { text-align: center; color: #aaa; font-size: 14px; padding: 20px 0; }
+
+    .divider {
+      text-align: center;
+      color: #aaa;
+      font-size: 13px;
+      margin: 4px 0 12px;
+    }
   </style>
 </head>
 <body>
 
+<!-- HEADER -->
 <div class="header">
   <span>📦 StockTake</span>
   <span class="gondola-badge" id="header-gondola">No gondola</span>
 </div>
 
-<!-- Setup Screen -->
+<!-- SCREEN: Setup (Gondola Entry) -->
 <div class="screen active page-content" id="screen-setup">
   <div style="margin-top: 40px;">
     <div class="card">
@@ -68,8 +231,9 @@
   </div>
 </div>
 
-<!-- Scan Screen -->
+<!-- SCREEN: Scan -->
 <div class="screen page-content" id="screen-scan">
+
   <div class="card">
     <h2>📷 Scan barcode</h2>
     <button class="btn btn-outline" onclick="startCamera()" id="btn-camera">Open Camera</button>
@@ -78,26 +242,30 @@
       <p class="scan-hint">Point camera at barcode — it will scan automatically</p>
       <button class="btn btn-gray" style="margin-top:10px" onclick="stopCamera()">Close Camera</button>
     </div>
+
     <div class="divider">— or enter manually —</div>
-    <input type="text" id="barcode-input" placeholder="Type barcode number..."/>
+
+    <input type="text" id="barcode-input" placeholder="Type barcode number..." />
     <button class="btn btn-primary" onclick="lookupBarcode()">Look Up</button>
   </div>
 
   <div class="status" id="status-box"></div>
 
   <div class="card" id="product-card" style="display:none">
-    <div class="product-info">
+    <div class="product-info visible" id="product-info">
       <p class="product-name" id="p-name"></p>
       <p><span class="badge" id="p-uom"></span><span id="p-dept"></span></p>
       <p style="margin-top:6px;color:#666;font-size:13px">Material: <span id="p-mat"></span></p>
     </div>
-    <input type="number" id="qty-input" placeholder="Enter quantity..." min="0"/>
+
+    <input type="number" id="qty-input" placeholder="Enter quantity..." min="0" />
     <button class="btn btn-success" onclick="saveScan()">✔ Save to Sheet</button>
     <button class="btn btn-gray" onclick="resetScan()">Cancel</button>
   </div>
+
 </div>
 
-<!-- Log Screen -->
+<!-- SCREEN: Log -->
 <div class="screen page-content" id="screen-log">
   <div class="card">
     <h2>📋 Scanned this session</h2>
@@ -105,10 +273,10 @@
       <li class="empty-log">No scans yet.</li>
     </ul>
   </div>
-  <button class="btn btn-danger" onclick="endSession()">End Session / Change Gondola</button>
+  <button class="btn btn-danger" onclick="endSession()" style="margin:0 0 10px">End Session / Change Gondola</button>
 </div>
 
-<!-- Tab Bar -->
+<!-- TAB BAR -->
 <div class="tab-bar" id="tab-bar" style="display:none">
   <button class="tab active" onclick="showTab('scan')" id="tab-scan">
     <span class="tab-icon">🔍</span>Scan
@@ -119,117 +287,124 @@
 </div>
 
 <script>
-const API_URL = "https://script.google.com/macros/s/AKfycbxOe5ZDUJfIkLX9W5JwZiuGZriUFi5YRiHl_EeWSzlSUDPCtaXCIOjcdFRY5qc_6Yw/exec";
+  // ── CONFIG ──────────────────────────────────────────
+  const API_URL = "https://script.google.com/macros/s/AKfycbxOe5ZDUJfIkLX9W5JwZiuGZriUFi5YRiHl_EeWSzlSUDPCtaXCIOjcdFRY5qc_6Yw/exec";
 
-let gondola = "";
-let currentProduct = null;
-let sessionLog = [];
-let codeReader = null;
-let cameraActive = false;
+  // ── STATE ───────────────────────────────────────────
+  let gondola      = "";
+  let currentProduct = null;
+  let sessionLog   = [];
+  let codeReader   = null;
+  let cameraActive = false;
 
-function warmUp() {
-  fetch(API_URL + "?action=lookup&barcode=warmup").catch(function() {});
-}
-
-function setGondola() {
-  var val = document.getElementById("gondola-input").value.trim().toUpperCase();
-  if (!val) { alert("Please enter a gondola ID (e.g. SM1)"); return; }
-  gondola = val;
-  document.getElementById("header-gondola").textContent = gondola;
-  document.getElementById("tab-bar").style.display = "flex";
-  showScreen("screen-scan");
-  showTab("scan");
-  warmUp();
-}
-
-function showTab(tab) {
-  document.querySelectorAll(".tab").forEach(function(t) { t.classList.remove("active"); });
-  document.getElementById("tab-" + tab).classList.add("active");
-  showScreen("screen-" + tab);
-  if (tab !== "scan") stopCamera();
-}
-
-function showScreen(id) {
-  document.querySelectorAll(".screen").forEach(function(s) { s.classList.remove("active"); });
-  document.getElementById(id).classList.add("active");
-}
-
-function startCamera() {
-  document.getElementById("video-container").classList.add("visible");
-  document.getElementById("btn-camera").style.display = "none";
-  setStatus("loading", "Starting camera...");
-  try {
-    codeReader = new ZXing.BrowserMultiFormatReader();
-    cameraActive = true;
-    codeReader.decodeFromVideoDevice(null, "video", function(result, err) {
-      if (result && cameraActive) {
-        cameraActive = false;
-        var barcode = result.getText();
-        stopCamera();
-        document.getElementById("barcode-input").value = barcode;
-        setStatus("loading", "⏳ Looking up barcode...");
-        lookupBarcode();
-      }
-    });
-    setStatus("", "");
-  } catch(e) {
-    setStatus("error", "Camera error: " + e.message);
+  // ── GONDOLA SETUP ───────────────────────────────────
+  function setGondola() {
+    const val = document.getElementById("gondola-input").value.trim().toUpperCase();
+    if (!val) { alert("Please enter a gondola ID (e.g. SM1)"); return; }
+    gondola = val;
+    document.getElementById("header-gondola").textContent = gondola;
+    document.getElementById("tab-bar").style.display = "flex";
+    showScreen("screen-scan");
+    showTab("scan");
   }
-}
 
-function stopCamera() {
-  cameraActive = false;
-  if (codeReader) { codeReader.reset(); codeReader = null; }
-  document.getElementById("video-container").classList.remove("visible");
-  document.getElementById("btn-camera").style.display = "block";
-}
+  // ── TABS ────────────────────────────────────────────
+  function showTab(tab) {
+    document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+    document.getElementById("tab-" + tab).classList.add("active");
+    showScreen("screen-" + tab);
+    if (tab !== "scan") stopCamera();
+  }
 
-function lookupBarcode() {
-  var barcode = document.getElementById("barcode-input").value.trim();
-  if (!barcode) { alert("Please enter or scan a barcode."); return; }
-  setStatus("loading", "⏳ Looking up product...");
-  hideProduct();
-  var start = Date.now();
-  fetch(API_URL + "?action=lookup&barcode=" + barcode)
-    .then(function(res) { return res.json(); })
-    .then(function(data) {
-      var took = ((Date.now() - start) / 1000).toFixed(1);
+  function showScreen(id) {
+    document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+    document.getElementById(id).classList.add("active");
+  }
+
+  // ── CAMERA ──────────────────────────────────────────
+  async function startCamera() {
+    document.getElementById("video-container").classList.add("visible");
+    document.getElementById("btn-camera").style.display = "none";
+    setStatus("loading", "Starting camera...");
+
+    try {
+      codeReader = new ZXing.BrowserMultiFormatReader();
+      cameraActive = true;
+      await codeReader.decodeFromVideoDevice(null, "video", (result, err) => {
+        if (result && cameraActive) {
+          cameraActive = false;
+          const barcode = result.getText();
+          stopCamera();
+          document.getElementById("barcode-input").value = barcode;
+          setStatus("success", "Barcode scanned: " + barcode);
+          lookupBarcode();
+        }
+      });
+      setStatus("", "");
+    } catch (e) {
+      setStatus("error", "Camera error: " + e.message);
+    }
+  }
+
+  function stopCamera() {
+    cameraActive = false;
+    if (codeReader) { codeReader.reset(); codeReader = null; }
+    document.getElementById("video-container").classList.remove("visible");
+    document.getElementById("btn-camera").style.display = "block";
+  }
+
+  // ── BARCODE LOOKUP ───────────────────────────────────
+  async function lookupBarcode() {
+    const barcode = document.getElementById("barcode-input").value.trim();
+    if (!barcode) { alert("Please enter or scan a barcode."); return; }
+
+    setStatus("loading", "🔍 Looking up barcode...");
+    hideProduct();
+
+    try {
+      const res  = await fetch(`${API_URL}?action=lookup&barcode=${barcode}`);
+      const data = await res.json();
+
       if (data.found) {
         currentProduct = data;
         showProduct(data);
-        setStatus("success", "✅ Product found! (" + took + "s)");
+        setStatus("success", "✅ Product found!");
       } else {
         setStatus("error", "❌ Barcode not found in MASTER LIST.");
         currentProduct = null;
       }
-    })
-    .catch(function() {
+    } catch (e) {
       setStatus("error", "⚠️ Connection error. Check internet.");
-    });
-}
+    }
+  }
 
-function saveScan() {
-  var qty = document.getElementById("qty-input").value.trim();
-  if (!qty || Number(qty) < 0) { alert("Please enter a valid quantity."); return; }
-  if (!currentProduct) { alert("No product loaded."); return; }
-  setStatus("loading", "💾 Saving to Google Sheet...");
-  var payload = {
-    gondola:     gondola,
-    barcode:     currentProduct.barcode,
-    material:    currentProduct.material,
-    description: currentProduct.description,
-    uom:         currentProduct.uom,
-    numerator:   currentProduct.numerator,
-    department:  currentProduct.department,
-    qty:         Number(qty)
-  };
-  fetch(API_URL, {
-    method: "POST",
-    headers: { "Content-Type": "text/plain" },
-    body: JSON.stringify(payload)
-  })
-    .then(function(res) { return res.json(); })
-    .then(function(data) {
+  // ── SAVE SCAN ────────────────────────────────────────
+  async function saveScan() {
+    const qty = document.getElementById("qty-input").value.trim();
+    if (!qty || Number(qty) < 0) { alert("Please enter a valid quantity."); return; }
+    if (!currentProduct) { alert("No product loaded."); return; }
+
+    setStatus("loading", "💾 Saving to Google Sheet...");
+
+    const payload = {
+      gondola:     gondola,
+      barcode:     currentProduct.barcode,
+      material:    currentProduct.material,
+      description: currentProduct.description,
+      uom:         currentProduct.uom,
+      numerator:   currentProduct.numerator,
+      department:  currentProduct.department,
+      qty:         Number(qty)
+    };
+
+    try {
+      const res  = await fetch(API_URL, {
+        method:  "POST",
+        headers: { "Content-Type": "text/plain" },
+        body:    JSON.stringify(payload)
+      });
+      const data = await res.json();
+
       if (data.success) {
         setStatus("success", "✅ Saved to sheet: " + gondola);
         addToLog(currentProduct.description, qty, currentProduct.uom);
@@ -237,68 +412,71 @@ function saveScan() {
       } else {
         setStatus("error", "❌ Save failed: " + (data.error || "unknown error"));
       }
-    })
-    .catch(function() {
+    } catch (e) {
       setStatus("error", "⚠️ Connection error. Could not save.");
-    });
-}
-
-function showProduct(data) {
-  document.getElementById("p-name").textContent = data.description;
-  document.getElementById("p-uom").textContent  = data.uom;
-  document.getElementById("p-dept").textContent = " " + data.department;
-  document.getElementById("p-mat").textContent  = data.material;
-  document.getElementById("product-card").style.display = "block";
-  document.getElementById("qty-input").focus();
-}
-
-function hideProduct() {
-  document.getElementById("product-card").style.display = "none";
-  currentProduct = null;
-}
-
-function resetScan() {
-  document.getElementById("barcode-input").value = "";
-  document.getElementById("qty-input").value = "";
-  hideProduct();
-  setTimeout(function() { setStatus("", ""); }, 2000);
-}
-
-function setStatus(type, msg) {
-  var box = document.getElementById("status-box");
-  box.className = "status" + (type ? " visible " + type : "");
-  box.textContent = msg;
-}
-
-function addToLog(name, qty, uom) {
-  sessionLog.unshift({ name: name, qty: qty, uom: uom, time: new Date().toLocaleTimeString() });
-  renderLog();
-}
-
-function renderLog() {
-  var list = document.getElementById("log-list");
-  if (sessionLog.length === 0) {
-    list.innerHTML = '<li class="empty-log">No scans yet.</li>';
-    return;
+    }
   }
-  list.innerHTML = sessionLog.map(function(item) {
-    return '<li class="log-item"><div class="log-name">' + item.name + '</div><div class="log-meta">Qty: ' + item.qty + ' ' + item.uom + ' &nbsp;·&nbsp; ' + item.time + '</div></li>';
-  }).join("");
-}
 
-function endSession() {
-  if (!confirm("End session and change gondola?")) return;
-  gondola = "";
-  sessionLog = [];
-  currentProduct = null;
-  stopCamera();
-  resetScan();
-  renderLog();
-  document.getElementById("gondola-input").value = "";
-  document.getElementById("header-gondola").textContent = "No gondola";
-  document.getElementById("tab-bar").style.display = "none";
-  showScreen("screen-setup");
-}
+  // ── UI HELPERS ───────────────────────────────────────
+  function showProduct(data) {
+    document.getElementById("p-name").textContent = data.description;
+    document.getElementById("p-uom").textContent  = data.uom;
+    document.getElementById("p-dept").textContent = " " + data.department;
+    document.getElementById("p-mat").textContent  = data.material;
+    document.getElementById("product-card").style.display = "block";
+    document.getElementById("qty-input").focus();
+  }
+
+  function hideProduct() {
+    document.getElementById("product-card").style.display = "none";
+    currentProduct = null;
+  }
+
+  function resetScan() {
+    document.getElementById("barcode-input").value = "";
+    document.getElementById("qty-input").value     = "";
+    hideProduct();
+    setTimeout(() => setStatus("", ""), 2000);
+  }
+
+  function setStatus(type, msg) {
+    const box = document.getElementById("status-box");
+    box.className = "status" + (type ? " visible " + type : "");
+    box.textContent = msg;
+  }
+
+  function addToLog(name, qty, uom) {
+    sessionLog.unshift({ name, qty, uom, time: new Date().toLocaleTimeString() });
+    renderLog();
+  }
+
+  function renderLog() {
+    const list = document.getElementById("log-list");
+    if (sessionLog.length === 0) {
+      list.innerHTML = '<li class="empty-log">No scans yet.</li>';
+      return;
+    }
+    list.innerHTML = sessionLog.map(item => `
+      <li class="log-item">
+        <div class="log-name">${item.name}</div>
+        <div class="log-meta">Qty: ${item.qty} ${item.uom} &nbsp;·&nbsp; ${item.time}</div>
+      </li>
+    `).join("");
+  }
+
+  function endSession() {
+    if (!confirm("End session and change gondola?")) return;
+    gondola = "";
+    sessionLog = [];
+    currentProduct = null;
+    stopCamera();
+    resetScan();
+    renderLog();
+    document.getElementById("gondola-input").value = "";
+    document.getElementById("header-gondola").textContent = "No gondola";
+    document.getElementById("tab-bar").style.display = "none";
+    showScreen("screen-setup");
+  }
 </script>
 </body>
 </html>
