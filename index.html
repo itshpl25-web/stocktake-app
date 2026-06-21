@@ -14,10 +14,11 @@
     .screen.active { display: block; }
     .card { background: white; border-radius: 12px; padding: 20px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
     .card h2 { font-size: 16px; color: #444; margin-bottom: 16px; }
-    input[type="text"], input[type="number"] { width: 100%; padding: 12px 14px; border: 1.5px solid #ddd; border-radius: 8px; font-size: 16px; margin-bottom: 12px; outline: none; transition: border 0.2s; }
-    input:focus { border-color: #1a73e8; }
+    input[type="text"], input[type="number"], select { width: 100%; padding: 12px 14px; border: 1.5px solid #ddd; border-radius: 8px; font-size: 16px; margin-bottom: 12px; outline: none; transition: border 0.2s; background: white; }
+    input:focus, select:focus { border-color: #1a73e8; }
     .btn { width: 100%; padding: 14px; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; margin-bottom: 10px; transition: opacity 0.2s; }
     .btn:active { opacity: 0.8; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
     .btn-primary { background: #1a73e8; color: white; }
     .btn-success { background: #34a853; color: white; }
     .btn-outline { background: white; color: #1a73e8; border: 1.5px solid #1a73e8; }
@@ -52,23 +53,32 @@
     .cache-status.loading { background: #fff3cd; color: #856404; }
     .cache-status.ready { background: #d4edda; color: #155724; }
     .cache-status.error { background: #f8d7da; color: #721c24; }
+    label { display: block; font-size: 13px; color: #666; margin-bottom: 6px; font-weight: bold; }
   </style>
 </head>
 <body>
 
 <div class="header">
   <span>📦 StockTake</span>
-  <span class="gondola-badge" id="header-gondola">No gondola</span>
+  <span class="gondola-badge" id="header-gondola">No session</span>
 </div>
 
 <!-- Setup Screen -->
 <div class="screen active page-content" id="screen-setup">
   <div style="margin-top: 40px;">
     <div class="card">
-      <h2>👋 Welcome! Set your gondola first.</h2>
+      <h2>👋 Welcome! Set up your session.</h2>
       <div class="cache-status loading" id="cache-status">⏳ Loading product list...</div>
+
+      <label>Department</label>
+      <select id="department-input">
+        <option value="">Loading departments...</option>
+      </select>
+
+      <label>Gondola ID</label>
       <input type="text" id="gondola-input" placeholder="e.g. SM1, SM2, SM3..." maxlength="10"/>
-      <button class="btn btn-primary" id="btn-start" onclick="setGondola()" disabled>Loading...</button>
+
+      <button class="btn btn-primary" id="btn-start" onclick="checkAndStart()" disabled>Loading...</button>
     </div>
   </div>
 </div>
@@ -127,25 +137,23 @@
 const API_URL = "https://script.google.com/macros/s/AKfycbz8qeeh29JM4qAcnvkzOY7t4ZdvHfxbsAEWmlK8YJAMIA1SMZEZHsHG7VCJjr7GHnNp/exec";
 
 let gondola        = "";
+let department      = "";
 let currentProduct = null;
 let sessionLog     = [];
 let codeReader     = null;
 let cameraActive   = false;
-let productCache   = null; // stores full MASTER LIST
+let productCache   = null;
 
-// ── LOAD PRODUCT CACHE ON PAGE LOAD ─────────────────
 window.addEventListener("load", function() {
   loadProductCache();
+  loadDepartments();
 });
 
 function loadProductCache() {
-  var cacheEl  = document.getElementById("cache-status");
-  var btnStart = document.getElementById("btn-start");
-
+  var cacheEl = document.getElementById("cache-status");
   cacheEl.className = "cache-status loading";
   cacheEl.textContent = "⏳ Loading product list...";
-  btnStart.disabled = true;
-  btnStart.textContent = "Loading...";
+  checkReady();
 
   fetch(API_URL + "?action=getall")
     .then(function(res) { return res.json(); })
@@ -154,31 +162,83 @@ function loadProductCache() {
         productCache = data.products;
         var count = Object.keys(productCache).length;
         cacheEl.className = "cache-status ready";
-        cacheEl.textContent = "✅ " + count + " products loaded — ready to scan!";
-        btnStart.disabled = false;
-        btnStart.textContent = "Start Session";
+        cacheEl.textContent = "✅ " + count + " products loaded";
       } else {
         throw new Error("Invalid response");
       }
+      checkReady();
     })
     .catch(function() {
       cacheEl.className = "cache-status error";
-      cacheEl.textContent = "⚠️ Could not load products. Check internet and refresh.";
-      // Still allow starting — will fall back to API lookup
-      btnStart.disabled = false;
-      btnStart.textContent = "Start Session (offline mode)";
+      cacheEl.textContent = "⚠️ Could not load products. Refresh to retry.";
+      checkReady();
     });
 }
 
-// ── GONDOLA SETUP ────────────────────────────────────
-function setGondola() {
-  var val = document.getElementById("gondola-input").value.trim().toUpperCase();
-  if (!val) { alert("Please enter a gondola ID (e.g. SM1)"); return; }
-  gondola = val;
-  document.getElementById("header-gondola").textContent = gondola;
-  document.getElementById("tab-bar").style.display = "flex";
-  showScreen("screen-scan");
-  showTab("scan");
+function loadDepartments() {
+  var select = document.getElementById("department-input");
+  fetch(API_URL + "?action=getdepartments")
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+      if (data.success && data.departments) {
+        select.innerHTML = '<option value="">Select department...</option>' +
+          data.departments.map(function(d) { return '<option value="' + d + '">' + d + '</option>'; }).join("");
+      } else {
+        select.innerHTML = '<option value="">Failed to load</option>';
+      }
+      checkReady();
+    })
+    .catch(function() {
+      select.innerHTML = '<option value="">Failed to load — refresh</option>';
+      checkReady();
+    });
+}
+
+function checkReady() {
+  var btnStart = document.getElementById("btn-start");
+  var deptSelect = document.getElementById("department-input");
+  var deptLoaded = deptSelect.options.length > 0 && deptSelect.options[0].value !== "Loading departments..." && !deptSelect.disabled;
+  if (productCache !== null) {
+    btnStart.disabled = false;
+    btnStart.textContent = "Start Session";
+  }
+}
+
+// ── GONDOLA SETUP WITH DUPLICATE CHECK ───────────────
+function checkAndStart() {
+  var dept = document.getElementById("department-input").value;
+  var gond = document.getElementById("gondola-input").value.trim().toUpperCase();
+
+  if (!dept) { alert("Please select a department."); return; }
+  if (!gond) { alert("Please enter a Gondola ID."); return; }
+
+  var btnStart = document.getElementById("btn-start");
+  btnStart.disabled = true;
+  btnStart.textContent = "Checking...";
+
+  fetch(API_URL + "?action=checkgondola&gondola=" + encodeURIComponent(gond))
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+      btnStart.disabled = false;
+      btnStart.textContent = "Start Session";
+
+      if (data.exists) {
+        alert("⚠️ Gondola ID \"" + gond + "\" already exists in " + data.department + ". Please use a different Gondola ID.");
+        return;
+      }
+
+      department = dept;
+      gondola = gond;
+      document.getElementById("header-gondola").textContent = gondola + " · " + department;
+      document.getElementById("tab-bar").style.display = "flex";
+      showScreen("screen-scan");
+      showTab("scan");
+    })
+    .catch(function() {
+      btnStart.disabled = false;
+      btnStart.textContent = "Start Session";
+      alert("⚠️ Connection error. Could not verify Gondola ID. Check internet and try again.");
+    });
 }
 
 // ── TABS ─────────────────────────────────────────────
@@ -225,40 +285,33 @@ function stopCamera() {
   document.getElementById("btn-camera").style.display = "block";
 }
 
-// ── BARCODE LOOKUP — uses cache if available ──────────
+// ── BARCODE LOOKUP ────────────────────────────────────
 function lookupBarcode() {
   var barcode = document.getElementById("barcode-input").value.trim();
   if (!barcode) { alert("Please enter or scan a barcode."); return; }
-
   hideProduct();
 
-  // ── INSTANT: check cache first ──
   if (productCache) {
     var product = productCache[barcode];
     if (product) {
-      product.found = true;
       currentProduct = product;
       showProduct(product);
       setStatus("success", "✅ Product found!");
-      return; // done — no API call needed
     } else {
       setStatus("error", "❌ Barcode not found in MASTER LIST.");
       currentProduct = null;
-      return;
     }
+    return;
   }
 
-  // ── FALLBACK: no cache, call API ──
   setStatus("loading", "⏳ Looking up product...");
-  var start = Date.now();
   fetch(API_URL + "?action=lookup&barcode=" + barcode)
     .then(function(res) { return res.json(); })
     .then(function(data) {
-      var took = ((Date.now() - start) / 1000).toFixed(1);
       if (data.found) {
         currentProduct = data;
         showProduct(data);
-        setStatus("success", "✅ Product found! (" + took + "s)");
+        setStatus("success", "✅ Product found!");
       } else {
         setStatus("error", "❌ Barcode not found in MASTER LIST.");
         currentProduct = null;
@@ -278,12 +331,12 @@ function saveScan() {
 
   var payload = {
     gondola:     gondola,
+    department:  department,
     barcode:     currentProduct.barcode,
     material:    currentProduct.material,
     description: currentProduct.description,
     uom:         currentProduct.uom,
     numerator:   currentProduct.numerator,
-    department:  currentProduct.department,
     qty:         Number(qty)
   };
 
@@ -295,7 +348,7 @@ function saveScan() {
     .then(function(res) { return res.json(); })
     .then(function(data) {
       if (data.success) {
-        setStatus("success", "✅ Saved to sheet: " + gondola);
+        setStatus("success", "✅ Saved to " + department);
         addToLog(currentProduct.description, qty, currentProduct.uom);
         resetScan();
       } else {
@@ -307,11 +360,38 @@ function saveScan() {
     });
 }
 
+// ── END SESSION ───────────────────────────────────────
+function endSession() {
+  if (!confirm("End session for " + gondola + "? This will mark it as Done.")) return;
+
+  fetch(API_URL, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain" },
+    body: JSON.stringify({ action: "endSession", gondola: gondola, department: department })
+  })
+    .then(function(res) { return res.json(); })
+    .catch(function() {})
+    .finally(function() {
+      gondola = "";
+      department = "";
+      sessionLog = [];
+      currentProduct = null;
+      stopCamera();
+      resetScan();
+      renderLog();
+      document.getElementById("gondola-input").value = "";
+      document.getElementById("department-input").value = "";
+      document.getElementById("header-gondola").textContent = "No session";
+      document.getElementById("tab-bar").style.display = "none";
+      showScreen("screen-setup");
+    });
+}
+
 // ── UI HELPERS ────────────────────────────────────────
 function showProduct(data) {
   document.getElementById("p-name").textContent = data.description;
   document.getElementById("p-uom").textContent  = data.uom;
-  document.getElementById("p-dept").textContent = " " + data.department;
+  document.getElementById("p-dept").textContent = " " + (data.department || department);
   document.getElementById("p-mat").textContent  = data.material;
   document.getElementById("product-card").style.display = "block";
   document.getElementById("qty-input").focus();
@@ -349,20 +429,6 @@ function renderLog() {
   list.innerHTML = sessionLog.map(function(item) {
     return '<li class="log-item"><div class="log-name">' + item.name + '</div><div class="log-meta">Qty: ' + item.qty + ' ' + item.uom + ' &nbsp;·&nbsp; ' + item.time + '</div></li>';
   }).join("");
-}
-
-function endSession() {
-  if (!confirm("End session and change gondola?")) return;
-  gondola = "";
-  sessionLog = [];
-  currentProduct = null;
-  stopCamera();
-  resetScan();
-  renderLog();
-  document.getElementById("gondola-input").value = "";
-  document.getElementById("header-gondola").textContent = "No gondola";
-  document.getElementById("tab-bar").style.display = "none";
-  showScreen("screen-setup");
 }
 </script>
 </body>
