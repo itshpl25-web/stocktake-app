@@ -76,7 +76,7 @@
       </select>
 
       <label>Gondola ID</label>
-      <input type="text" id="gondola-input" placeholder="e.g. SM1, SM2, SM3..." maxlength="10"/>
+      <input type="text" id="gondola-input" placeholder="e.g. SM1, SM2, SM3..." maxlength="10" style="text-transform: uppercase;" oninput="this.value = this.value.toUpperCase()"/>
 
       <button class="btn btn-primary" id="btn-start" onclick="checkAndStart()" disabled>Loading...</button>
     </div>
