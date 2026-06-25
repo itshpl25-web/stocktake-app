@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>StockTake Admin</title>
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: sans-serif; background: #f0f2f5; color: #1a1a1a; min-height: 100vh; }
+    .header { background: #e53935; color: white; padding: 16px 20px; font-size: 18px; font-weight: bold; display: flex; align-items: center; gap: 10px; }
+    .container { max-width: 600px; margin: 40px auto; padding: 20px; }
+    .card { background: white; border-radius: 12px; padding: 24px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+    .card h2 { font-size: 16px; color: #444; margin-bottom: 16px; }
+    input[type="text"], input[type="password"], input[type="number"] { width: 100%; padding: 12px 14px; border: 1.5px solid #ddd; border-radius: 8px; font-size: 16px; margin-bottom: 12px; outline: none; }
+    input:focus { border-color: #e53935; }
+    .btn { width: 100%; padding: 14px; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; margin-bottom: 10px; transition: opacity 0.2s; }
+    .btn:active { opacity: 0.8; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-admin { background: #e53935; color: white; }
+    .btn-gray { background: #e0e0e0; color: #444; }
+    .drop-zone { border: 2px dashed #ddd; border-radius: 12px; padding: 40px 20px; text-align: center; cursor: pointer; transition: all 0.2s; margin-bottom: 16px; background: #fafafa; }
+    .drop-zone:hover, .drop-zone.drag-over { border-color: #e53935; background: #fff5f5; }
+    .drop-zone .icon { font-size: 40px; margin-bottom: 10px; }
+    .drop-zone p { color: #666; font-size: 14px; }
+    .drop-zone .filename { color: #e53935; font-weight: bold; margin-top: 8px; font-size: 15px; }
+    .status { text-align: center; padding: 12px; border-radius: 8px; font-size: 14px; margin-bottom: 12px; display: none; }
+    .status.visible { display: block; }
+    .status.loading { background: #fff3cd; color: #856404; }
+    .status.success { background: #d4edda; color: #155724; }
+    .status.error { background: #f8d7da; color: #721c24; }
+    .preview-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 12px; overflow-x: auto; display: block; }
+    .preview-table th { background: #e53935; color: white; padding: 6px 8px; text-align: left; white-space: nowrap; }
+    .preview-table td { padding: 5px 8px; border-bottom: 1px solid #f0f0f0; white-space: nowrap; }
+    .preview-table tr:nth-child(even) td { background: #fafafa; }
+    .hidden { display: none; }
+    .pin-screen { max-width: 320px; margin: 80px auto; }
+    .badge { display: inline-block; background: #fff3cd; color: #856404; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: bold; margin-bottom: 16px; }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <span>🔧</span>
+  <span>StockTake Admin</span>
+</div>
+
+<!-- PIN Screen -->
+<div class="container" id="pin-screen">
+  <div class="pin-screen">
+    <div class="card">
+      <h2>🔒 Admin Access</h2>
+      <p style="color:#666; font-size:14px; margin-bottom:16px">Enter your PIN to continue.</p>
+      <input type="password" id="pin-input" placeholder="Enter PIN..." maxlength="10" onkeydown="if(event.key==='Enter') checkPin()"/>
+      <button class="btn btn-admin" onclick="checkPin()">Unlock</button>
+      <div class="status" id="pin-status"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Admin Panel -->
+<div class="container hidden" id="admin-panel">
+
+  <div class="card">
+    <div class="badge">⚠️ Admin only — do not share this URL</div>
+    <h2>📂 Upload Excel to Google Sheet</h2>
+    <p style="color:#666; font-size:13px; margin-bottom:16px">
+      Drop your SAP physical inventory Excel file below. Only the required 13 columns will be extracted and written to the <strong>Upload</strong> sheet — existing data will be overwritten.
+    </p>
+
+    <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
+      <div class="icon">📄</div>
+      <p>Drag & drop your Excel file here</p>
+      <p>or <strong>click to browse</strong></p>
+      <div class="filename" id="filename"></div>
+    </div>
+    <input type="file" id="file-input" accept=".xlsx,.xls" style="display:none" onchange="handleFile(this.files[0])"/>
+
+    <div class="status" id="upload-status"></div>
+
+    <div id="preview-section" class="hidden">
+      <p style="font-size:13px; color:#666; margin-bottom:8px">Preview (first 5 rows):</p>
+      <div style="overflow-x:auto">
+        <table class="preview-table" id="preview-table"></table>
+      </div>
+      <br/>
+      <button class="btn btn-admin" id="btn-upload" onclick="uploadToSheet()">⬆ Upload to Google Sheet</button>
+      <button class="btn btn-gray" onclick="resetUpload()">Cancel</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const API_URL = "https://script.google.com/macros/s/AKfycbz8qeeh29JM4qAcnvkzOY7t4ZdvHfxbsAEWmlK8YJAMIA1SMZEZHsHG7VCJjr7GHnNp/exec";
+const ADMIN_PIN = "8888"; // ← change this to your preferred PIN
+
+// Columns to extract (0-based indices from the Excel)
+const COL_INDICES = [0, 1, 2, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
+const COL_HEADERS = [
+  "Phys. Inventory Doc.", "Item", "Material", "Material Description",
+  "Batch", "Plant", "Storage location", "Special Stock",
+  "Count Date", "Qty Counted", "Base Unit of Measure", "Book Quantity", "Zero Count"
+];
+
+let extractedRows = [];
+
+// ── PIN CHECK ─────────────────────────────────────
+function checkPin() {
+  var pin = document.getElementById("pin-input").value.trim();
+  var statusEl = document.getElementById("pin-status");
+  if (pin === ADMIN_PIN) {
+    document.getElementById("pin-screen").classList.add("hidden");
+    document.getElementById("admin-panel").classList.remove("hidden");
+  } else {
+    statusEl.className = "status visible error";
+    statusEl.textContent = "❌ Incorrect PIN. Try again.";
+    document.getElementById("pin-input").value = "";
+  }
+}
+
+// ── DRAG & DROP ───────────────────────────────────
+var dropZone = document.getElementById("drop-zone");
+dropZone.addEventListener("dragover", function(e) {
+  e.preventDefault();
+  dropZone.classList.add("drag-over");
+});
+dropZone.addEventListener("dragleave", function() {
+  dropZone.classList.remove("drag-over");
+});
+dropZone.addEventListener("drop", function(e) {
+  e.preventDefault();
+  dropZone.classList.remove("drag-over");
+  var file = e.dataTransfer.files[0];
+  if (file) handleFile(file);
+});
+
+// ── FILE HANDLER ──────────────────────────────────
+function handleFile(file) {
+  if (!file) return;
+  if (!file.name.match(/\.(xlsx|xls)$/i)) {
+    setStatus("upload-status", "error", "❌ Please upload an Excel file (.xlsx or .xls)");
+    return;
+  }
+
+  document.getElementById("filename").textContent = file.name;
+  setStatus("upload-status", "loading", "⏳ Reading Excel file...");
+
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      var data = new Uint8Array(e.target.result);
+      var workbook = XLSX.read(data, { type: "array" });
+      var sheet = workbook.Sheets[workbook.SheetNames[0]];
+      var allRows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+
+      if (allRows.length < 2) {
+        setStatus("upload-status", "error", "❌ Excel file appears to be empty.");
+        return;
+      }
+
+      // Extract only the required columns (skip header row)
+      extractedRows = [];
+      for (var i = 1; i < allRows.length; i++) {
+        var row = allRows[i];
+        // Skip completely empty rows
+        if (!row[0] && !row[2]) continue;
+        var extracted = COL_INDICES.map(function(idx) {
+          return row[idx] !== undefined ? row[idx] : "";
+        });
+        extractedRows.push(extracted);
+      }
+
+      setStatus("upload-status", "success", "✅ " + extractedRows.length + " rows ready to upload.");
+      showPreview(extractedRows);
+
+    } catch(err) {
+      setStatus("upload-status", "error", "❌ Error reading file: " + err.message);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// ── PREVIEW TABLE ─────────────────────────────────
+function showPreview(rows) {
+  var table = document.getElementById("preview-table");
+  var preview = rows.slice(0, 5);
+
+  var html = "<tr>" + COL_HEADERS.map(function(h) {
+    return "<th>" + h + "</th>";
+  }).join("") + "</tr>";
+
+  preview.forEach(function(row) {
+    html += "<tr>" + row.map(function(cell) {
+      return "<td>" + cell + "</td>";
+    }).join("") + "</tr>";
+  });
+
+  table.innerHTML = html;
+  document.getElementById("preview-section").classList.remove("hidden");
+}
+
+// ── UPLOAD TO SHEET ───────────────────────────────
+function uploadToSheet() {
+  if (extractedRows.length === 0) {
+    setStatus("upload-status", "error", "❌ No data to upload.");
+    return;
+  }
+
+  var btn = document.getElementById("btn-upload");
+  btn.disabled = true;
+  btn.textContent = "⏳ Uploading...";
+  setStatus("upload-status", "loading", "⏳ Sending " + extractedRows.length + " rows to Google Sheet...");
+
+  // Split into chunks of 500 rows to avoid payload limits
+  var chunkSize = 500;
+  var chunks = [];
+  for (var i = 0; i < extractedRows.length; i += chunkSize) {
+    chunks.push(extractedRows.slice(i, i + chunkSize));
+  }
+
+  // Upload first chunk (with overwrite), then append remaining chunks
+  uploadChunk(chunks, 0, true);
+}
+
+function uploadChunk(chunks, index, isFirst) {
+  if (index >= chunks.length) {
+    setStatus("upload-status", "success", "✅ Upload complete! " + extractedRows.length + " rows written to Upload sheet.");
+    document.getElementById("btn-upload").disabled = false;
+    document.getElementById("btn-upload").textContent = "⬆ Upload to Google Sheet";
+    return;
+  }
+
+  fetch(API_URL, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain" },
+    body: JSON.stringify({
+      action: "uploadSheet",
+      rows: chunks[index],
+      isFirst: isFirst
+    })
+  })
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+      if (data.success) {
+        setStatus("upload-status", "loading", "⏳ Uploading chunk " + (index + 1) + " of " + chunks.length + "...");
+        uploadChunk(chunks, index + 1, false);
+      } else {
+        throw new Error(data.error || "Unknown error");
+      }
+    })
+    .catch(function(err) {
+      setStatus("upload-status", "error", "❌ Upload failed: " + err.message);
+      document.getElementById("btn-upload").disabled = false;
+      document.getElementById("btn-upload").textContent = "⬆ Upload to Google Sheet";
+    });
+}
+
+// ── RESET ─────────────────────────────────────────
+function resetUpload() {
+  extractedRows = [];
+  document.getElementById("filename").textContent = "";
+  document.getElementById("file-input").value = "";
+  document.getElementById("preview-section").classList.add("hidden");
+  document.getElementById("preview-table").innerHTML = "";
+  setStatus("upload-status", "", "");
+}
+
+function setStatus(id, type, msg) {
+  var el = document.getElementById(id);
+  el.className = "status" + (type ? " visible " + type : "");
+  el.textContent = msg;
+}
+</script>
+</body>
+</html>
