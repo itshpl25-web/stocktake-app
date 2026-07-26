@@ -67,7 +67,7 @@
 <div class="screen active page-content" id="screen-setup">
   <div style="margin-top: 40px;">
     <div class="card">
-      <h2>👋 Welcome! Set up your session.</h2>
+      <h2>👋 Welcome! Selamat berstock-take ! Semangat gais hehehe </h2>
       <div class="cache-status loading" id="cache-status">⏳ Loading product list...</div>
 
       <label>Department</label>
@@ -75,8 +75,18 @@
         <option value="">Loading departments...</option>
       </select>
 
+      <label>Staff Name</label>
+      <input type="text" id="staffname-input" placeholder="Enter your name..." maxlength="40"/>
+      
       <label>Gondola ID</label>
-      <input type="text" id="gondola-input" placeholder="e.g. SM1, SM2, SM3..." maxlength="10" style="text-transform: uppercase;" oninput="this.value = this.value.toUpperCase()"/>
+      <input type="text" id="gondola-input" placeholder="e.g. SM1, SM2, SM3..." maxlength="6" style="text-transform: uppercase;" oninput="this.value = this.value.toUpperCase()"/>
+
+      <button class="btn btn-outline" onclick="startGondolaCamera()" id="btn-gondola-camera">📷 Scan Gondola Barcode</button>
+      <div id="gondola-video-container" style="display:none; margin-bottom:14px;">
+        <video id="gondola-video" autoplay muted playsinline style="width:100%; border-radius:8px; background:#000;"></video>
+        <p class="scan-hint">Point camera at the gondola label barcode</p>
+        <button class="btn btn-gray" style="margin-top:10px" onclick="stopGondolaCamera()">Close Camera</button>
+      </div>
 
       <button class="btn btn-primary" id="btn-start" onclick="checkAndStart()" disabled>Loading...</button>
     </div>
@@ -106,7 +116,7 @@
       <p><span class="badge" id="p-uom"></span><span id="p-dept"></span></p>
       <p style="margin-top:6px;color:#666;font-size:13px">Material: <span id="p-mat"></span></p>
     </div>
-    <input type="number" id="qty-input" placeholder="Enter quantity..." min="0"/>
+    <input type="number" id="qty-input" placeholder="Enter quantity..." min="0" max="9999" oninput="if(this.value.length > 4) this.value = this.value.slice(0, 4);"/>
     <button class="btn btn-success" onclick="saveScan()">✔ Save to Sheet</button>
     <button class="btn btn-gray" onclick="resetScan()">Cancel</button>
   </div>
@@ -121,6 +131,7 @@
     </ul>
   </div>
   <button class="btn btn-danger" onclick="endSession()">End Session / Change Gondola</button>
+  <button class="btn btn-gray" onclick="cancelCount()">✖ Cancel Count (delete all)</button>
 </div>
 
 <!-- Tab Bar -->
@@ -134,10 +145,11 @@
 </div>
 
 <script>
-const API_URL = "https://script.google.com/macros/s/AKfycbz8qeeh29JM4qAcnvkzOY7t4ZdvHfxbsAEWmlK8YJAMIA1SMZEZHsHG7VCJjr7GHnNp/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbw1XJeXYvYWy1of3bIzrl4VoZVCL8Wj2sejtmVQ44SwXWowlv85zKxIe7ETt1My73VAsA/exec";
 
 let gondola        = "";
 let department      = "";
+let staffName       = "";
 let currentProduct = null;
 let sessionLog     = [];
 let codeReader     = null;
@@ -147,6 +159,7 @@ let productCache   = null;
 window.addEventListener("load", function() {
   loadProductCache();
   loadDepartments();
+  restoreSession();
 });
 
 function loadProductCache() {
@@ -208,10 +221,13 @@ function checkReady() {
 function checkAndStart() {
   var dept = document.getElementById("department-input").value;
   var gond = document.getElementById("gondola-input").value.trim().toUpperCase();
+  var name = document.getElementById("staffname-input").value.trim();
 
+  if (!name) { alert("Please enter your name."); return; }
   if (!dept) { alert("Please select a department."); return; }
   if (!gond) { alert("Please enter a Gondola ID."); return; }
-
+  if (gond.length > 6) { alert("Gondola ID cannot exceed 6 characters. Please check for a scanning or typing error."); return; }
+  
   var btnStart = document.getElementById("btn-start");
   btnStart.disabled = true;
   btnStart.textContent = "Checking...";
@@ -223,22 +239,55 @@ function checkAndStart() {
       btnStart.textContent = "Start Session";
 
       if (data.exists) {
-        alert("⚠️ Gondola ID \"" + gond + "\" already exists in " + data.department + ". Please use a different Gondola ID.");
-        return;
+        if (data.status === "Done") {
+          alert("⚠️ Gondola ID \"" + gond + "\" is already marked Done in " + data.department + ". Please use a different Gondola ID.");
+          return;
+        }
+        var resume = confirm("Gondola \"" + gond + "\" is already In Progress under " + data.department + ". Resume this session?");
+        if (!resume) return;
+        dept = data.department;
       }
 
-      department = dept;
-      gondola = gond;
-      document.getElementById("header-gondola").textContent = gondola + " · " + department;
-      document.getElementById("tab-bar").style.display = "flex";
-      showScreen("screen-scan");
-      showTab("scan");
+      staffName = name;
+      startSession(dept, gond);
     })
     .catch(function() {
       btnStart.disabled = false;
       btnStart.textContent = "Start Session";
       alert("⚠️ Connection error. Could not verify Gondola ID. Check internet and try again.");
     });
+}
+
+function startSession(dept, gond) {
+  department = dept;
+  gondola = gond;
+  document.getElementById("header-gondola").textContent = gondola + " · " + department + " · " + staffName;
+  document.getElementById("tab-bar").style.display = "flex";
+  showScreen("screen-scan");
+  showTab("scan");
+  saveSessionToStorage();
+}
+
+function saveSessionToStorage() {
+  try {
+    localStorage.setItem("stocktake_session", JSON.stringify({ gondola: gondola, department: department, staffName: staffName }));
+  } catch(e) {}
+}
+
+function clearSessionStorage() {
+  try { localStorage.removeItem("stocktake_session"); } catch(e) {}
+}
+
+function restoreSession() {
+  try {
+    var saved = localStorage.getItem("stocktake_session");
+    if (!saved) return;
+    var s = JSON.parse(saved);
+    if (s.gondola && s.department) {
+      staffName = s.staffName || "";
+      startSession(s.department, s.gondola);
+    }
+  } catch(e) {}
 }
 
 // ── TABS ─────────────────────────────────────────────
@@ -278,6 +327,42 @@ function startCamera() {
   }
 }
 
+// ── GONDOLA BARCODE CAMERA (setup screen) ────────────
+let gondolaCodeReader = null;
+let gondolaCameraActive = false;
+
+function startGondolaCamera() {
+  document.getElementById("gondola-video-container").style.display = "block";
+  document.getElementById("btn-gondola-camera").style.display = "none";
+
+  try {
+    gondolaCodeReader = new ZXing.BrowserMultiFormatReader();
+    gondolaCameraActive = true;
+    gondolaCodeReader.decodeFromVideoDevice(null, "gondola-video", function(result, err) {
+      if (result && gondolaCameraActive) {
+        gondolaCameraActive = false;
+        var scannedValue = result.getText().trim().toUpperCase();
+        stopGondolaCamera();
+        if (scannedValue.length > 6) {
+          alert("⚠️ Scanned code \"" + scannedValue + "\" is too long for a Gondola ID (max 6 characters). This looks like a product barcode, not a gondola label. Cuba scan betul2, hihi - shai.");
+          return;
+        }
+        document.getElementById("gondola-input").value = scannedValue;
+      }
+    });
+  } catch(e) {
+    alert("Camera error: " + e.message);
+    stopGondolaCamera();
+  }
+}
+
+function stopGondolaCamera() {
+  gondolaCameraActive = false;
+  if (gondolaCodeReader) { gondolaCodeReader.reset(); gondolaCodeReader = null; }
+  document.getElementById("gondola-video-container").style.display = "none";
+  document.getElementById("btn-gondola-camera").style.display = "block";
+}
+  
 function stopCamera() {
   cameraActive = false;
   if (codeReader) { codeReader.reset(); codeReader = null; }
@@ -294,6 +379,11 @@ function lookupBarcode() {
   if (productCache) {
     var product = productCache[barcode];
     if (product) {
+      if (product.department.toUpperCase() !== department.toUpperCase()) {
+        setStatus("error", "❌ This item belongs to \"" + product.department + "\", not \"" + department + "\". Wrong department for this gondola.");
+        currentProduct = null;
+        return;
+      }
       currentProduct = product;
       showProduct(product);
       setStatus("success", "✅ Product found!");
@@ -309,6 +399,11 @@ function lookupBarcode() {
     .then(function(res) { return res.json(); })
     .then(function(data) {
       if (data.found) {
+        if (data.department.toUpperCase() !== department.toUpperCase()) {
+          setStatus("error", "❌ This item belongs to \"" + data.department + "\", not \"" + department + "\". Wrong department for this gondola.");
+          currentProduct = null;
+          return;
+        }
         currentProduct = data;
         showProduct(data);
         setStatus("success", "✅ Product found!");
@@ -323,22 +418,49 @@ function lookupBarcode() {
 }
 
 // ── SAVE SCAN ─────────────────────────────────────────
-function saveScan() {
-  var qty = document.getElementById("qty-input").value.trim();
-  if (!qty || Number(qty) < 0) { alert("Please enter a valid quantity."); return; }
-  if (!currentProduct) { alert("No product loaded."); return; }
+let isSaving = false;
+
+function generateRequestId() {
+  return Date.now() + "-" + Math.random().toString(36).slice(2, 10);
+}
+
+function saveScan(retryPayload, retryId) {
+  if (isSaving) return; // block rapid double-taps
+
+  var payload, requestId;
+
+  if (retryPayload) {
+    payload = retryPayload;
+    requestId = retryId;
+  } else {
+    var qty = document.getElementById("qty-input").value.trim();
+    if (!qty || Number(qty) < 0) { alert("Please enter a valid quantity."); return; }
+    if (Number(qty) > 9999) { alert("Quantity cannot exceed 9999. Please check for a scanning error."); return; }
+    if (!currentProduct) { alert("No product loaded."); return; }
+
+    requestId = generateRequestId();
+    payload = {
+      requestId:   requestId,
+      gondola:     gondola,
+      department:  department,
+      staffName:   staffName,
+      barcode:     currentProduct.barcode,
+      material:    currentProduct.material,
+      description: currentProduct.description,
+      uom:         currentProduct.uom,
+      numerator:   currentProduct.numerator,
+      qty:         Number(qty)
+    };
+  }
+
+  isSaving = true;
+  var saveBtn = document.querySelector('#product-card .btn-success');
+  if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = "Saving..."; }
+
   setStatus("loading", "💾 Saving to Google Sheet...");
 
-  var payload = {
-    gondola:     gondola,
-    department:  department,
-    barcode:     currentProduct.barcode,
-    material:    currentProduct.material,
-    description: currentProduct.description,
-    uom:         currentProduct.uom,
-    numerator:   currentProduct.numerator,
-    qty:         Number(qty)
-  };
+  var savedProduct = currentProduct;
+  var savedQty = payload.qty;
 
   fetch(API_URL, {
     method: "POST",
@@ -349,14 +471,23 @@ function saveScan() {
     .then(function(data) {
       if (data.success) {
         setStatus("success", "✅ Saved to " + department);
-        addToLog(currentProduct.description, qty, currentProduct.uom);
+        addToLog(savedProduct.description, savedQty, savedProduct.uom, data.row, savedProduct.numerator, savedProduct.barcode);
         resetScan();
       } else {
         setStatus("error", "❌ Save failed: " + (data.error || "unknown error"));
       }
+      isSaving = false;
+      if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = "✔ Save to Sheet"; }
     })
     .catch(function() {
-      setStatus("error", "⚠️ Connection error. Could not save.");
+      isSaving = false;
+      if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = "Retry Save"; }
+      var doRetry = confirm("⚠️ Connection error. The item may or may not have been saved. Tap OK to safely retry (it will NOT create a duplicate), or Cancel to check manually.");
+      if (doRetry) {
+        saveScan(payload, requestId);
+      } else {
+        setStatus("error", "⚠️ Connection error. Could not confirm save.");
+      }
     });
 }
 
@@ -372,8 +503,10 @@ function endSession() {
     .then(function(res) { return res.json(); })
     .catch(function() {})
     .finally(function() {
+      clearSessionStorage();
       gondola = "";
       department = "";
+      staffName = "";
       sessionLog = [];
       currentProduct = null;
       stopCamera();
@@ -390,7 +523,7 @@ function endSession() {
 // ── UI HELPERS ────────────────────────────────────────
 function showProduct(data) {
   document.getElementById("p-name").textContent = data.description;
-  document.getElementById("p-uom").textContent  = data.uom;
+  document.getElementById("p-uom").textContent  = data.uom + (data.numerator > 1 ? " (" + data.numerator + "'s)" : "");
   document.getElementById("p-dept").textContent = " " + (data.department || department);
   document.getElementById("p-mat").textContent  = data.material;
   document.getElementById("product-card").style.display = "block";
@@ -415,8 +548,8 @@ function setStatus(type, msg) {
   box.textContent = msg;
 }
 
-function addToLog(name, qty, uom) {
-  sessionLog.unshift({ name: name, qty: qty, uom: uom, time: new Date().toLocaleTimeString() });
+function addToLog(name, qty, uom, row, numerator, barcode) {
+  sessionLog.unshift({ name: name, qty: qty, uom: uom, time: new Date().toLocaleTimeString(), row: row, numerator: numerator, barcode: barcode });
   renderLog();
 }
 
@@ -427,8 +560,103 @@ function renderLog() {
     return;
   }
   list.innerHTML = sessionLog.map(function(item) {
-    return '<li class="log-item"><div class="log-name">' + item.name + '</div><div class="log-meta">Qty: ' + item.qty + ' ' + item.uom + ' &nbsp;·&nbsp; ' + item.time + '</div></li>';
+    var uomLabel = item.uom + (item.numerator > 1 ? " (" + item.numerator + "'s)" : "");
+    return '<li class="log-item">' +
+      '<div class="log-name">' + item.name + '</div>' +
+      '<div class="log-meta">Qty: ' + item.qty + ' ' + uomLabel + ' &nbsp;·&nbsp; ' + item.time + '</div>' +
+      '<div class="log-meta">EAN/UPC: ' + item.barcode + '</div>' +
+      '<div style="margin-top:8px; display:flex; gap:8px;">' +
+        '<button class="btn btn-gray" style="width:auto; padding:6px 14px; margin:0; font-size:12px;" onclick="editLogItem(' + item.row + ')">✎ Edit Qty</button>' +
+        '<button class="btn btn-danger" style="width:auto; padding:6px 14px; margin:0; font-size:12px;" onclick="deleteLogItem(' + item.row + ')">🗑 Delete</button>' +
+      '</div>' +
+    '</li>';
   }).join("");
+}
+
+function editLogItem(row) {
+  var item = sessionLog.find(function(i) { return i.row === row; });
+  if (!item) return;
+
+  var newQty = prompt("Enter new quantity for \"" + item.name + "\":", item.qty);
+  if (newQty === null) return;
+  if (newQty === "" || isNaN(newQty) || Number(newQty) < 0) {
+    alert("Please enter a valid quantity.");
+    return;
+  }
+  if (Number(newQty) > 9999) {
+    alert("Quantity cannot exceed 9999.");
+    return;
+  }
+
+  fetch(API_URL, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain" },
+    body: JSON.stringify({ action: "updateScan", department: department, row: row, qty: Number(newQty) })
+  })
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+      if (data.success) {
+        item.qty = Number(newQty);
+        renderLog();
+      } else {
+        alert("❌ Failed to update: " + (data.error || "unknown error"));
+      }
+    })
+    .catch(function() {
+      alert("⚠️ Connection error. Could not update.");
+    });
+}
+
+function deleteLogItem(row) {
+  if (!confirm("Delete this scanned item? This cannot be undone.")) return;
+
+  fetch(API_URL, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain" },
+    body: JSON.stringify({ action: "deleteScan", department: department, row: row })
+  })
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+      if (data.success) {
+        sessionLog = sessionLog.filter(function(i) { return i.row !== row; });
+        sessionLog.forEach(function(i) { if (i.row > row) i.row = i.row - 1; });
+        renderLog();
+      } else {
+        alert("❌ Failed to delete: " + (data.error || "unknown error"));
+      }
+    })
+    .catch(function() {
+      alert("⚠️ Connection error. Could not delete.");
+    });
+}
+
+function cancelCount() {
+  if (!confirm("Cancel this count for " + gondola + "? ALL scanned items for this gondola will be permanently deleted.")) return;
+
+  fetch(API_URL, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain" },
+    body: JSON.stringify({ action: "cancelSession", gondola: gondola, department: department })
+  })
+    .then(function(res) { return res.json(); })
+    .catch(function() {})
+    .finally(function() {
+      clearSessionStorage();
+      gondola = "";
+      department = "";
+      staffName = "";
+      sessionLog = [];
+      currentProduct = null;
+      stopCamera();
+      resetScan();
+      renderLog();
+      ddocument.getElementById("gondola-input").value = "";
+      document.getElementById("department-input").value = "";
+      document.getElementById("staffname-input").value = "";
+      document.getElementById("header-gondola").textContent = "No session";
+      document.getElementById("tab-bar").style.display = "none";
+      showScreen("screen-setup");
+    });
 }
 </script>
 </body>
