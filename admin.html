@@ -69,9 +69,10 @@
     </p>
 
     <label>Department</label>
-    <select id="dept-select">
+    <select id="master-dept-input" onchange="toggleNewDeptInput()">
       <option value="">Loading departments...</option>
     </select>
+    <input type="text" id="master-dept-new" placeholder="Type new department name..." style="display:none; text-transform: uppercase;" oninput="this.value = this.value.toUpperCase()"/>
 
     <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
       <div class="icon">📄</div>
@@ -155,6 +156,26 @@ dropZoneMaster.addEventListener("drop", function(e) {
   if (file) handleMasterFile(file);
 });
 
+function toggleNewDeptInput() {
+  var select = document.getElementById("master-dept-input");
+  var newInput = document.getElementById("master-dept-new");
+  if (select.value === "__new__") {
+    newInput.style.display = "block";
+    newInput.focus();
+  } else {
+    newInput.style.display = "none";
+    newInput.value = "";
+  }
+}
+
+function getMasterDepartment() {
+  var select = document.getElementById("master-dept-input");
+  if (select.value === "__new__") {
+    return document.getElementById("master-dept-new").value.trim().toUpperCase();
+  }
+  return select.value;
+}
+  
 function handleMasterFile(file) {
   if (!file) return;
   if (!file.name.match(/\.(xlsx|xls)$/i)) {
@@ -214,7 +235,7 @@ function showMasterPreview(rows) {
 }
 
 function uploadMasterList() {
-  var dept = document.getElementById("master-dept-input").value.trim().toUpperCase();
+  var dept = getMasterDepartment();
   if (!dept) {
     setStatus("master-status", "error", "❌ Please enter a Department first.");
     return;
@@ -278,6 +299,8 @@ function resetMasterUpload() {
   document.getElementById("filename-master").textContent = "";
   document.getElementById("file-input-master").value = "";
   document.getElementById("master-dept-input").value = "";
+  document.getElementById("master-dept-new").value = "";
+  document.getElementById("master-dept-new").style.display = "none";
   document.getElementById("master-preview-section").classList.add("hidden");
   document.getElementById("master-preview-table").innerHTML = "";
   setStatus("master-status", "", "");
@@ -337,7 +360,7 @@ function loadDepartments() {
             return '<option value="' + d + '">' + d + '</option>';
           }).join("");
         select.innerHTML = options;
-        masterSelect.innerHTML = options;
+        masterSelect.innerHTML = options + '<option value="__new__">+ Add new department...</option>';
       } else {
         select.innerHTML = '<option value="">Failed to load</option>';
         masterSelect.innerHTML = '<option value="">Failed to load</option>';
