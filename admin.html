@@ -65,8 +65,13 @@
     <div class="badge">⚠️ Admin only — do not share this URL</div>
     <h2>📂 Upload Excel to Google Sheet</h2>
     <p style="color:#666; font-size:13px; margin-bottom:16px">
-      Drop your SAP physical inventory Excel file below. Only the required 13 columns will be extracted and written to the <strong>Upload</strong> sheet — existing data will be overwritten.
+      Select the department, then drop your SAP physical inventory Excel file. Data will be written to a sheet named <strong>UPLOAD - [DEPARTMENT]</strong>.
     </p>
+
+    <label>Department</label>
+    <select id="dept-select">
+      <option value="">Loading departments...</option>
+    </select>
 
     <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
       <div class="icon">📄</div>
@@ -89,12 +94,209 @@
     </div>
   </div>
 
+<div class="card">
+    <h2>📋 Update MASTER LIST</h2>
+    <p style="color:#666; font-size:13px; margin-bottom:16px">
+      Drop your MASTER LIST Excel (Material, Description, Group, Sales Unit, Numerator, EAN/UPC, Department). Existing barcodes will be updated, new ones added.
+    </p>
+    <label>Department</label>
+    <input type="text" id="master-dept-input" placeholder="e.g. MILK POWDER" style="text-transform: uppercase;" oninput="this.value = this.value.toUpperCase()"/>
+    <div class="drop-zone" id="drop-zone-master" onclick="document.getElementById('file-input-master').click()">
+      <div class="icon">📋</div>
+      <p>Drag & drop MASTER LIST Excel here</p>
+      <p>or <strong>click to browse</strong></p>
+      <div class="filename" id="filename-master"></div>
+    </div>
+    <input type="file" id="file-input-master" accept=".xlsx,.xls" style="display:none"/>
+
+    <div class="status" id="master-status"></div>
+
+    <div id="master-preview-section" class="hidden">
+      <p style="font-size:13px; color:#666; margin-bottom:8px">Preview (first 5 rows):</p>
+      <div style="overflow-x:auto">
+        <table class="preview-table" id="master-preview-table"></table>
+      </div>
+      <br/>
+      <button class="btn btn-admin" id="btn-upload-master" onclick="uploadMasterList()">⬆ Update MASTER LIST</button>
+      <button class="btn btn-gray" onclick="resetMasterUpload()">Cancel</button>
+    </div>
+  </div>
+  
 </div>
 
 <script>
 const API_URL = "https://script.google.com/macros/s/AKfycbz8qeeh29JM4qAcnvkzOY7t4ZdvHfxbsAEWmlK8YJAMIA1SMZEZHsHG7VCJjr7GHnNp/exec";
 const ADMIN_PIN = "8888"; // ← change this to your preferred PIN
 
+const MASTER_COL_INDICES = [2, 3, 37, 7, 8, 4]; // Material, Description, Group, Sales Unit, Numerator, EAN/UPC
+const MASTER_HEADERS = ["Material", "Material Description", "Material Group", "Sales Unit", "Numerator", "EAN/UPC", "Department"];
+let extractedMasterRows = [];
+
+document.getElementById("file-input-master").addEventListener("change", function(e) {
+  if (e.target.files && e.target.files[0]) {
+    handleMasterFile(e.target.files[0]);
+  }
+});
+  
+var dropZoneMaster = document.getElementById("drop-zone-master");
+dropZoneMaster.addEventListener("dragover", function(e) {
+  e.preventDefault();
+  dropZoneMaster.classList.add("drag-over");
+});
+dropZoneMaster.addEventListener("dragleave", function() {
+  dropZoneMaster.classList.remove("drag-over");
+});
+dropZoneMaster.addEventListener("drop", function(e) {
+  e.preventDefault();
+  dropZoneMaster.classList.remove("drag-over");
+  var file = e.dataTransfer.files[0];
+  if (file) handleMasterFile(file);
+});
+
+function handleMasterFile(file) {
+  if (!file) return;
+  if (!file.name.match(/\.(xlsx|xls)$/i)) {
+    setStatus("master-status", "error", "❌ Please upload an Excel file (.xlsx or .xls)");
+    return;
+  }
+
+  document.getElementById("filename-master").textContent = file.name;
+  setStatus("master-status", "loading", "⏳ Reading Excel file...");
+
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      var data = new Uint8Array(e.target.result);
+      var workbook = XLSX.read(data, { type: "array" });
+      var sheet = workbook.Sheets[workbook.SheetNames[0]];
+      var allRows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "", raw: false });
+
+      if (allRows.length < 2) {
+        setStatus("master-status", "error", "❌ Excel file appears to be empty.");
+        return;
+      }
+
+      extractedMasterRows = [];
+      for (var i = 1; i < allRows.length; i++) {
+        var row = allRows[i];
+        var material = row[2];
+        var barcode  = row[4];
+        if (!material && !barcode) continue;
+        var extracted = MASTER_COL_INDICES.map(function(idx) {
+          return row[idx] !== undefined ? row[idx] : "";
+        });
+        extractedMasterRows.push(extracted);
+      }
+
+      setStatus("master-status", "success", "✅ " + extractedMasterRows.length + " rows ready.");
+      showMasterPreview(extractedMasterRows);
+
+    } catch(err) {
+      setStatus("master-status", "error", "❌ Error reading file: " + err.message);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+  
+function showMasterPreview(rows) {
+  var table = document.getElementById("master-preview-table");
+  var preview = rows.slice(0, 5);
+
+  var html = "<tr>" + MASTER_HEADERS.map(function(h) { return "<th>" + h + "</th>"; }).join("") + "</tr>";
+  preview.forEach(function(row) {
+    html += "<tr>" + row.map(function(cell) { return "<td>" + cell + "</td>"; }).join("") + "</tr>";
+  });
+
+  table.innerHTML = html;
+  document.getElementById("master-preview-section").classList.remove("hidden");
+}
+
+function uploadMasterList() {
+  var dept = document.getElementById("master-dept-input").value.trim().toUpperCase();
+  if (!dept) {
+    setStatus("master-status", "error", "❌ Please enter a Department first.");
+    return;
+  }
+  if (extractedMasterRows.length === 0) {
+    setStatus("master-status", "error", "❌ No data to upload.");
+    return;
+  }
+
+  var rowsWithDept = extractedMasterRows.map(function(row) {
+    return row.concat([dept]);
+  });
+
+  var btn = document.getElementById("btn-upload-master");
+  btn.disabled = true;
+  btn.textContent = "⏳ Uploading...";
+  setStatus("master-status", "loading", "⏳ Sending " + rowsWithDept.length + " rows...");
+
+  var chunkSize = 500;
+  var chunks = [];
+  for (var i = 0; i < rowsWithDept.length; i += chunkSize) {
+    chunks.push(rowsWithDept.slice(i, i + chunkSize));
+  }
+
+  uploadMasterChunk(chunks, 0, { updated: 0, added: 0 });
+}
+
+function uploadMasterChunk(chunks, index, totals) {
+  if (index >= chunks.length) {
+    setStatus("master-status", "success", "✅ Done! Updated: " + totals.updated + " · Added: " + totals.added);
+    document.getElementById("btn-upload-master").disabled = false;
+    document.getElementById("btn-upload-master").textContent = "⬆ Update MASTER LIST";
+    return;
+  }
+
+  fetch(API_URL, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain" },
+    body: JSON.stringify({ action: "uploadMasterList", rows: chunks[index] })
+  })
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+      if (data.success) {
+        totals.updated += data.updated;
+        totals.added += data.added;
+        setStatus("master-status", "loading", "⏳ Processing chunk " + (index + 1) + " of " + chunks.length + "...");
+        uploadMasterChunk(chunks, index + 1, totals);
+      } else {
+        throw new Error(data.error || "Unknown error");
+      }
+    })
+    .catch(function(err) {
+      setStatus("master-status", "error", "❌ Upload failed: " + err.message);
+      document.getElementById("btn-upload-master").disabled = false;
+      document.getElementById("btn-upload-master").textContent = "⬆ Update MASTER LIST";
+    });
+}
+
+function resetMasterUpload() {
+  extractedMasterRows = [];
+  document.getElementById("filename-master").textContent = "";
+  document.getElementById("file-input-master").value = "";
+  document.getElementById("master-dept-input").value = "";
+  document.getElementById("master-preview-section").classList.add("hidden");
+  document.getElementById("master-preview-table").innerHTML = "";
+  setStatus("master-status", "", "");
+}
+  
+function formatDate(val) {
+  // If it's already a string like "6/24/26" or "24/6/2026", parse and reformat
+  var d;
+  if (typeof val === "number") {
+    // Excel serial date number
+    d = new Date(Math.round((val - 25569) * 86400 * 1000));
+  } else {
+    d = new Date(val);
+  }
+  if (isNaN(d.getTime())) return val; // return as-is if not a valid date
+  var dd = String(d.getDate()).padStart(2, "0");
+  var mm = String(d.getMonth() + 1).padStart(2, "0");
+  var yyyy = d.getFullYear();
+  return dd + "." + mm + "." + yyyy;
+}
+  
 // Columns to extract (0-based indices from the Excel)
 const COL_INDICES = [0, 1, 2, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
 const COL_HEADERS = [
@@ -112,6 +314,7 @@ function checkPin() {
   if (pin === ADMIN_PIN) {
     document.getElementById("pin-screen").classList.add("hidden");
     document.getElementById("admin-panel").classList.remove("hidden");
+    loadDepartments();
   } else {
     statusEl.className = "status visible error";
     statusEl.textContent = "❌ Incorrect PIN. Try again.";
@@ -119,6 +322,25 @@ function checkPin() {
   }
 }
 
+function loadDepartments() {
+  var select = document.getElementById("dept-select");
+  fetch(API_URL + "?action=getdepartments")
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+      if (data.success && data.departments) {
+        select.innerHTML = '<option value="">Select department...</option>' +
+          data.departments.map(function(d) {
+            return '<option value="' + d + '">' + d + '</option>';
+          }).join("");
+      } else {
+        select.innerHTML = '<option value="">Failed to load</option>';
+      }
+    })
+    .catch(function() {
+      select.innerHTML = '<option value="">Failed to load — refresh</option>';
+    });
+}
+  
 // ── DRAG & DROP ───────────────────────────────────
 var dropZone = document.getElementById("drop-zone");
 dropZone.addEventListener("dragover", function(e) {
@@ -152,7 +374,7 @@ function handleFile(file) {
       var data = new Uint8Array(e.target.result);
       var workbook = XLSX.read(data, { type: "array" });
       var sheet = workbook.Sheets[workbook.SheetNames[0]];
-      var allRows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+      var allRows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "", raw: false, dateNF: "DD/MM/YYYY" });
 
       if (allRows.length < 2) {
         setStatus("upload-status", "error", "❌ Excel file appears to be empty.");
@@ -163,10 +385,14 @@ function handleFile(file) {
       extractedRows = [];
       for (var i = 1; i < allRows.length; i++) {
         var row = allRows[i];
-        // Skip completely empty rows
         if (!row[0] && !row[2]) continue;
         var extracted = COL_INDICES.map(function(idx) {
-          return row[idx] !== undefined ? row[idx] : "";
+          var val = row[idx] !== undefined ? row[idx] : "";
+          // Format date columns (index 10 = Count Date)
+          if (idx === 10 && val) {
+            val = formatDate(val);
+          }
+          return val;
         });
         extractedRows.push(extracted);
       }
@@ -202,6 +428,11 @@ function showPreview(rows) {
 
 // ── UPLOAD TO SHEET ───────────────────────────────
 function uploadToSheet() {
+  var dept = document.getElementById("dept-select").value;
+  if (!dept) {
+    setStatus("upload-status", "error", "❌ Please select a department first.");
+    return;
+  }
   if (extractedRows.length === 0) {
     setStatus("upload-status", "error", "❌ No data to upload.");
     return;
@@ -236,6 +467,7 @@ function uploadChunk(chunks, index, isFirst) {
     headers: { "Content-Type": "text/plain" },
     body: JSON.stringify({
       action: "uploadSheet",
+      department: document.getElementById("dept-select").value,
       rows: chunks[index],
       isFirst: isFirst
     })
