@@ -100,7 +100,9 @@
       Drop your MASTER LIST Excel (Material, Description, Group, Sales Unit, Numerator, EAN/UPC, Department). Existing barcodes will be updated, new ones added.
     </p>
     <label>Department</label>
-    <input type="text" id="master-dept-input" placeholder="e.g. MILK POWDER" style="text-transform: uppercase;" oninput="this.value = this.value.toUpperCase()"/>
+    <select id="master-dept-input">
+      <option value="">Loading departments...</option>
+    </select>
     <div class="drop-zone" id="drop-zone-master" onclick="document.getElementById('file-input-master').click()">
       <div class="icon">📋</div>
       <p>Drag & drop MASTER LIST Excel here</p>
@@ -324,20 +326,26 @@ function checkPin() {
 
 function loadDepartments() {
   var select = document.getElementById("dept-select");
+  var masterSelect = document.getElementById("master-dept-input");
+
   fetch(API_URL + "?action=getdepartments")
     .then(function(res) { return res.json(); })
     .then(function(data) {
       if (data.success && data.departments) {
-        select.innerHTML = '<option value="">Select department...</option>' +
+        var options = '<option value="">Select department...</option>' +
           data.departments.map(function(d) {
             return '<option value="' + d + '">' + d + '</option>';
           }).join("");
+        select.innerHTML = options;
+        masterSelect.innerHTML = options;
       } else {
         select.innerHTML = '<option value="">Failed to load</option>';
+        masterSelect.innerHTML = '<option value="">Failed to load</option>';
       }
     })
     .catch(function() {
       select.innerHTML = '<option value="">Failed to load — refresh</option>';
+      masterSelect.innerHTML = '<option value="">Failed to load — refresh</option>';
     });
 }
   
