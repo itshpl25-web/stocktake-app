@@ -69,10 +69,9 @@
     </p>
 
     <label>Department</label>
-    <select id="master-dept-input" onchange="toggleNewDeptInput()">
+    <select id="dept-select">
       <option value="">Loading departments...</option>
     </select>
-    <input type="text" id="master-dept-new" placeholder="Type new department name..." style="display:none; text-transform: uppercase;" oninput="this.value = this.value.toUpperCase()"/>
 
     <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
       <div class="icon">📄</div>
@@ -100,10 +99,11 @@
     <p style="color:#666; font-size:13px; margin-bottom:16px">
       Drop your MASTER LIST Excel (Material, Description, Group, Sales Unit, Numerator, EAN/UPC, Department). Existing barcodes will be updated, new ones added.
     </p>
-    <label>Department</label>
-    <select id="master-dept-input">
+   <label>Department</label>
+    <select id="master-dept-input" onchange="toggleNewDeptInput()">
       <option value="">Loading departments...</option>
     </select>
+    <input type="text" id="master-dept-new" placeholder="Type new department name..." style="display:none; text-transform: uppercase;" oninput="this.value = this.value.toUpperCase()"/>
     <div class="drop-zone" id="drop-zone-master" onclick="document.getElementById('file-input-master').click()">
       <div class="icon">📋</div>
       <p>Drag & drop MASTER LIST Excel here</p>
