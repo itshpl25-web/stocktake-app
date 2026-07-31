@@ -266,6 +266,29 @@ function startSession(dept, gond) {
   showScreen("screen-scan");
   showTab("scan");
   saveSessionToStorage();
+  loadSessionLogFromSheet();
+}
+
+function loadSessionLogFromSheet() {
+  fetch(API_URL + "?action=getgondolalog&department=" + encodeURIComponent(department) + "&gondola=" + encodeURIComponent(gondola))
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+      if (data.success && data.items) {
+        sessionLog = data.items.map(function(it) {
+          return {
+            name: it.description,
+            qty: it.qty,
+            uom: it.uom,
+            numerator: it.numerator,
+            barcode: it.barcode,
+            row: it.row,
+            time: ""
+          };
+        }).reverse(); // most recent scan first, matching existing behavior
+        renderLog();
+      }
+    })
+    .catch(function() {});
 }
 
 function saveSessionToStorage() {
@@ -561,9 +584,10 @@ function renderLog() {
   }
   list.innerHTML = sessionLog.map(function(item) {
     var uomLabel = item.uom + (item.numerator > 1 ? " (" + item.numerator + "'s)" : "");
+    var timePart = item.time ? (' &nbsp;·&nbsp; ' + item.time) : '';
     return '<li class="log-item">' +
       '<div class="log-name">' + item.name + '</div>' +
-      '<div class="log-meta">Qty: ' + item.qty + ' ' + uomLabel + ' &nbsp;·&nbsp; ' + item.time + '</div>' +
+      '<div class="log-meta">Qty: ' + item.qty + ' ' + uomLabel + timePart + '</div>' +
       '<div class="log-meta">EAN/UPC: ' + item.barcode + '</div>' +
       '<div style="margin-top:8px; display:flex; gap:8px;">' +
         '<button class="btn btn-gray" style="width:auto; padding:6px 14px; margin:0; font-size:12px;" onclick="editLogItem(' + item.row + ')">✎ Edit Qty</button>' +
