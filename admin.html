@@ -263,7 +263,9 @@ function uploadMasterList() {
   uploadMasterChunk(chunks, 0, { updated: 0, added: 0 });
 }
 
-function uploadMasterChunk(chunks, index, totals) {
+function uploadMasterChunk(chunks, index, totals, retryCount) {
+  retryCount = retryCount || 0;
+
   if (index >= chunks.length) {
     setStatus("master-status", "success", "✅ Done! Updated: " + totals.updated + " · Added: " + totals.added);
     document.getElementById("btn-upload-master").disabled = false;
@@ -276,21 +278,37 @@ function uploadMasterChunk(chunks, index, totals) {
     headers: { "Content-Type": "text/plain" },
     body: JSON.stringify({ action: "uploadMasterList", rows: chunks[index] })
   })
-    .then(function(res) { return res.json(); })
-    .then(function(data) {
+    .then(function(res) { return res.text(); })
+    .then(function(text) {
+      var data;
+      try {
+        data = JSON.parse(text);
+      } catch(e) {
+        throw new Error("Server returned an unexpected response (likely rate-limited). Retrying...");
+      }
+
       if (data.success) {
         totals.updated += data.updated;
         totals.added += data.added;
         setStatus("master-status", "loading", "⏳ Processing chunk " + (index + 1) + " of " + chunks.length + "...");
-        uploadMasterChunk(chunks, index + 1, totals);
+        setTimeout(function() {
+          uploadMasterChunk(chunks, index + 1, totals, 0);
+        }, 400); // small delay to avoid rate limits
       } else {
         throw new Error(data.error || "Unknown error");
       }
     })
     .catch(function(err) {
-      setStatus("master-status", "error", "❌ Upload failed: " + err.message);
-      document.getElementById("btn-upload-master").disabled = false;
-      document.getElementById("btn-upload-master").textContent = "⬆ Update MASTER LIST";
+      if (retryCount < 3) {
+        setStatus("master-status", "loading", "⏳ Chunk " + (index + 1) + " hit a snag, retrying (" + (retryCount + 1) + "/3)...");
+        setTimeout(function() {
+          uploadMasterChunk(chunks, index, totals, retryCount + 1);
+        }, 1500);
+      } else {
+        setStatus("master-status", "error", "❌ Upload failed after retries: " + err.message + " (Stopped at chunk " + (index + 1) + " of " + chunks.length + ". Updated so far: " + totals.updated + ", Added: " + totals.added + ")");
+        document.getElementById("btn-upload-master").disabled = false;
+        document.getElementById("btn-upload-master").textContent = "⬆ Update MASTER LIST";
+      }
     });
 }
 
@@ -485,7 +503,9 @@ function uploadToSheet() {
   uploadChunk(chunks, 0, true);
 }
 
-function uploadChunk(chunks, index, isFirst) {
+function uploadChunk(chunks, index, isFirst, retryCount) {
+  retryCount = retryCount || 0;
+
   if (index >= chunks.length) {
     setStatus("upload-status", "success", "✅ Upload complete! " + extractedRows.length + " rows written to Upload sheet.");
     document.getElementById("btn-upload").disabled = false;
@@ -503,19 +523,35 @@ function uploadChunk(chunks, index, isFirst) {
       isFirst: isFirst
     })
   })
-    .then(function(res) { return res.json(); })
-    .then(function(data) {
+    .then(function(res) { return res.text(); })
+    .then(function(text) {
+      var data;
+      try {
+        data = JSON.parse(text);
+      } catch(e) {
+        throw new Error("Server returned an unexpected response (likely rate-limited). Retrying...");
+      }
+
       if (data.success) {
         setStatus("upload-status", "loading", "⏳ Uploading chunk " + (index + 1) + " of " + chunks.length + "...");
-        uploadChunk(chunks, index + 1, false);
+        setTimeout(function() {
+          uploadChunk(chunks, index + 1, false, 0);
+        }, 400);
       } else {
         throw new Error(data.error || "Unknown error");
       }
     })
     .catch(function(err) {
-      setStatus("upload-status", "error", "❌ Upload failed: " + err.message);
-      document.getElementById("btn-upload").disabled = false;
-      document.getElementById("btn-upload").textContent = "⬆ Upload to Google Sheet";
+      if (retryCount < 3) {
+        setStatus("upload-status", "loading", "⏳ Chunk " + (index + 1) + " hit a snag, retrying (" + (retryCount + 1) + "/3)...");
+        setTimeout(function() {
+          uploadChunk(chunks, index, isFirst, retryCount + 1);
+        }, 1500);
+      } else {
+        setStatus("upload-status", "error", "❌ Upload failed after retries: " + err.message);
+        document.getElementById("btn-upload").disabled = false;
+        document.getElementById("btn-upload").textContent = "⬆ Upload to Google Sheet";
+      }
     });
 }
 
