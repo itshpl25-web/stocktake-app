@@ -231,7 +231,24 @@ function fetchProductPage(page, retryCount) {
       throw err;
     });
 }
-
+function loadDepartments() {
+  var select = document.getElementById("department-input");
+  fetch(API_URL + "?action=getdepartments")
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+      if (data.success && data.departments) {
+        select.innerHTML = '<option value="">Select department...</option>' +
+          data.departments.map(function(d) { return '<option value="' + d + '">' + d + '</option>'; }).join("");
+      } else {
+        select.innerHTML = '<option value="">Failed to load</option>';
+      }
+      checkReady();
+    })
+    .catch(function() {
+      select.innerHTML = '<option value="">Failed to load — refresh</option>';
+      checkReady();
+    });
+}
 function checkReady() {
   var btnStart = document.getElementById("btn-start");
   var deptSelect = document.getElementById("department-input");
