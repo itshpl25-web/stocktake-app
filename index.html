@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>StockTake App - 1015 SHPL</title>
+  <title>StockTake App</title>
   <script src="https://unpkg.com/@zxing/library@latest/umd/index.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -59,7 +59,7 @@
 <body>
 
 <div class="header">
-  <span>📦 StockTake - 1015 SHPL</span>
+  <span>📦 StockTake</span>
   <span class="gondola-badge" id="header-gondola">No session</span>
 </div>
 
@@ -167,70 +167,27 @@ function loadProductCache() {
   cacheEl.className = "cache-status loading";
   cacheEl.textContent = "⏳ Loading product list...";
   checkReady();
-  productCache = {};
 
-  fetchProductPage(0, 0)
-    .then(function(firstPageData) {
-      var totalPages = Math.ceil(firstPageData.totalRows / 3000);
-      Object.assign(productCache, firstPageData.products);
-
-      if (totalPages <= 1) {
-        finishLoading();
-        return;
+  fetch(API_URL + "?action=getall")
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+      if (data.success && data.products) {
+        productCache = data.products;
+        var count = Object.keys(productCache).length;
+        cacheEl.className = "cache-status ready";
+        cacheEl.textContent = "✅ " + count + " products loaded";
+      } else {
+        throw new Error("Invalid response");
       }
-
-      var pagePromises = [];
-      for (var p = 1; p < totalPages; p++) {
-        pagePromises.push(fetchProductPage(p, 0));
-      }
-
-      Promise.all(pagePromises)
-        .then(function(results) {
-          results.forEach(function(r) { Object.assign(productCache, r.products); });
-          finishLoading();
-        })
-        .catch(function() {
-          finishLoading(); // show whatever loaded successfully
-        });
+      checkReady();
     })
     .catch(function() {
       cacheEl.className = "cache-status error";
       cacheEl.textContent = "⚠️ Could not load products. Refresh to retry.";
       checkReady();
     });
-
-  function finishLoading() {
-    var count = Object.keys(productCache).length;
-    cacheEl.className = "cache-status ready";
-    cacheEl.textContent = "✅ " + count + " products loaded";
-    checkReady();
-  }
 }
 
-function fetchProductPage(page, retryCount) {
-  return fetch(API_URL + "?action=getall&page=" + page)
-    .then(function(res) { return res.text(); })
-    .then(function(text) {
-      var data;
-      try {
-        data = JSON.parse(text);
-      } catch(e) {
-        throw new Error("Bad response");
-      }
-      if (!data.success) throw new Error(data.error || "Invalid response");
-      return data;
-    })
-    .catch(function(err) {
-      if (retryCount < 3) {
-        return new Promise(function(resolve) {
-          setTimeout(function() {
-            resolve(fetchProductPage(page, retryCount + 1));
-          }, 800);
-        });
-      }
-      throw err;
-    });
-}
 function loadDepartments() {
   var select = document.getElementById("department-input");
   fetch(API_URL + "?action=getdepartments")
@@ -249,6 +206,7 @@ function loadDepartments() {
       checkReady();
     });
 }
+
 function checkReady() {
   var btnStart = document.getElementById("btn-start");
   var deptSelect = document.getElementById("department-input");
