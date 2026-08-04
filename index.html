@@ -167,24 +167,48 @@ function loadProductCache() {
   cacheEl.className = "cache-status loading";
   cacheEl.textContent = "⏳ Loading product list...";
   checkReady();
+  productCache = {};
+  loadProductPage(0, 0);
+}
 
-  fetch(API_URL + "?action=getall")
-    .then(function(res) { return res.json(); })
-    .then(function(data) {
-      if (data.success && data.products) {
-        productCache = data.products;
-        var count = Object.keys(productCache).length;
+function loadProductPage(page, retryCount) {
+  var cacheEl = document.getElementById("cache-status");
+
+  fetch(API_URL + "?action=getall&page=" + page)
+    .then(function(res) { return res.text(); })
+    .then(function(text) {
+      var data;
+      try {
+        data = JSON.parse(text);
+      } catch(e) {
+        throw new Error("Bad response, retrying...");
+      }
+
+      if (!data.success) throw new Error(data.error || "Invalid response");
+
+      Object.assign(productCache, data.products);
+      var count = Object.keys(productCache).length;
+      cacheEl.className = "cache-status loading";
+      cacheEl.textContent = "⏳ Loading products... (" + count + " so far)";
+
+      if (data.hasMore) {
+        loadProductPage(data.nextPage, 0);
+      } else {
         cacheEl.className = "cache-status ready";
         cacheEl.textContent = "✅ " + count + " products loaded";
-      } else {
-        throw new Error("Invalid response");
+        checkReady();
       }
-      checkReady();
     })
     .catch(function() {
-      cacheEl.className = "cache-status error";
-      cacheEl.textContent = "⚠️ Could not load products. Refresh to retry.";
-      checkReady();
+      if (retryCount < 3) {
+        setTimeout(function() {
+          loadProductPage(page, retryCount + 1);
+        }, 1000);
+      } else {
+        cacheEl.className = "cache-status error";
+        cacheEl.textContent = "⚠️ Could not load all products. Refresh to retry.";
+        checkReady();
+      }
     });
 }
 
