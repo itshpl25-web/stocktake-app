@@ -168,66 +168,67 @@ function loadProductCache() {
   cacheEl.textContent = "⏳ Loading product list...";
   checkReady();
   productCache = {};
-  loadProductPage(0, 0);
+
+  fetchProductPage(0, 0)
+    .then(function(firstPageData) {
+      var totalPages = Math.ceil(firstPageData.totalRows / 3000);
+      Object.assign(productCache, firstPageData.products);
+
+      if (totalPages <= 1) {
+        finishLoading();
+        return;
+      }
+
+      var pagePromises = [];
+      for (var p = 1; p < totalPages; p++) {
+        pagePromises.push(fetchProductPage(p, 0));
+      }
+
+      Promise.all(pagePromises)
+        .then(function(results) {
+          results.forEach(function(r) { Object.assign(productCache, r.products); });
+          finishLoading();
+        })
+        .catch(function() {
+          finishLoading(); // show whatever loaded successfully
+        });
+    })
+    .catch(function() {
+      cacheEl.className = "cache-status error";
+      cacheEl.textContent = "⚠️ Could not load products. Refresh to retry.";
+      checkReady();
+    });
+
+  function finishLoading() {
+    var count = Object.keys(productCache).length;
+    cacheEl.className = "cache-status ready";
+    cacheEl.textContent = "✅ " + count + " products loaded";
+    checkReady();
+  }
 }
 
-function loadProductPage(page, retryCount) {
-  var cacheEl = document.getElementById("cache-status");
-
-  fetch(API_URL + "?action=getall&page=" + page)
+function fetchProductPage(page, retryCount) {
+  return fetch(API_URL + "?action=getall&page=" + page)
     .then(function(res) { return res.text(); })
     .then(function(text) {
       var data;
       try {
         data = JSON.parse(text);
       } catch(e) {
-        throw new Error("Bad response, retrying...");
+        throw new Error("Bad response");
       }
-
       if (!data.success) throw new Error(data.error || "Invalid response");
-
-      Object.assign(productCache, data.products);
-      var count = Object.keys(productCache).length;
-      cacheEl.className = "cache-status loading";
-      cacheEl.textContent = "⏳ Loading products... (" + count + " so far)";
-
-      if (data.hasMore) {
-        loadProductPage(data.nextPage, 0);
-      } else {
-        cacheEl.className = "cache-status ready";
-        cacheEl.textContent = "✅ " + count + " products loaded";
-        checkReady();
-      }
+      return data;
     })
-    .catch(function() {
+    .catch(function(err) {
       if (retryCount < 3) {
-        setTimeout(function() {
-          loadProductPage(page, retryCount + 1);
-        }, 1000);
-      } else {
-        cacheEl.className = "cache-status error";
-        cacheEl.textContent = "⚠️ Could not load all products. Refresh to retry.";
-        checkReady();
+        return new Promise(function(resolve) {
+          setTimeout(function() {
+            resolve(fetchProductPage(page, retryCount + 1));
+          }, 800);
+        });
       }
-    });
-}
-
-function loadDepartments() {
-  var select = document.getElementById("department-input");
-  fetch(API_URL + "?action=getdepartments")
-    .then(function(res) { return res.json(); })
-    .then(function(data) {
-      if (data.success && data.departments) {
-        select.innerHTML = '<option value="">Select department...</option>' +
-          data.departments.map(function(d) { return '<option value="' + d + '">' + d + '</option>'; }).join("");
-      } else {
-        select.innerHTML = '<option value="">Failed to load</option>';
-      }
-      checkReady();
-    })
-    .catch(function() {
-      select.innerHTML = '<option value="">Failed to load — refresh</option>';
-      checkReady();
+      throw err;
     });
 }
 
