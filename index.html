@@ -597,47 +597,67 @@ function renderLog() {
   }).join("");
 }
 
-function editLogItem(row) {
+function editLogItem(row, retryReqId, retryQty) {
   var item = sessionLog.find(function(i) { return i.row === row; });
   if (!item) return;
 
-  var newQty = prompt("Enter new quantity for \"" + item.name + "\":", item.qty);
-  if (newQty === null) return;
-  if (newQty === "" || isNaN(newQty) || Number(newQty) < 0) {
-    alert("Please enter a valid quantity.");
-    return;
+  var newQty;
+  if (retryReqId !== undefined) {
+    newQty = retryQty;
+  } else {
+    newQty = prompt("Enter new quantity for \"" + item.name + "\":", item.qty);
+    if (newQty === null) return;
+    if (newQty === "" || isNaN(newQty) || Number(newQty) < 0) {
+      alert("Please enter a valid quantity.");
+      return;
+    }
+    if (Number(newQty) > 9999) {
+      alert("Quantity cannot exceed 9999.");
+      return;
+    }
   }
-  if (Number(newQty) > 9999) {
-    alert("Quantity cannot exceed 9999.");
-    return;
-  }
+
+  var requestId = retryReqId || generateRequestId();
 
   fetch(API_URL, {
     method: "POST",
     headers: { "Content-Type": "text/plain" },
-    body: JSON.stringify({ action: "updateScan", department: department, row: row, qty: Number(newQty) })
+    body: JSON.stringify({ action: "updateScan", department: department, row: row, qty: Number(newQty), requestId: requestId, expectedBarcode: item.barcode })
   })
     .then(function(res) { return res.json(); })
     .then(function(data) {
       if (data.success) {
         item.qty = Number(newQty);
         renderLog();
+      } else if (data.error && data.error.indexOf("mismatch") !== -1) {
+        alert("⚠️ " + data.error);
+        loadSessionLogFromSheet();
       } else {
         alert("❌ Failed to update: " + (data.error || "unknown error"));
       }
     })
     .catch(function() {
-      alert("⚠️ Connection error. Could not update.");
+      var doRetry = confirm("⚠️ Connection error. The update may or may not have gone through. Tap OK to safely retry, or Cancel to refresh the log manually.");
+      if (doRetry) {
+        editLogItem(row, requestId, newQty);
+      } else {
+        loadSessionLogFromSheet();
+      }
     });
 }
 
-function deleteLogItem(row) {
-  if (!confirm("Delete this scanned item? This cannot be undone.")) return;
+function deleteLogItem(row, retryReqId) {
+  var item = sessionLog.find(function(i) { return i.row === row; });
+  if (!item) return;
+
+  if (!retryReqId && !confirm("Delete this scanned item? This cannot be undone.")) return;
+
+  var requestId = retryReqId || generateRequestId();
 
   fetch(API_URL, {
     method: "POST",
     headers: { "Content-Type": "text/plain" },
-    body: JSON.stringify({ action: "deleteScan", department: department, row: row })
+    body: JSON.stringify({ action: "deleteScan", department: department, row: row, requestId: requestId, expectedBarcode: item.barcode })
   })
     .then(function(res) { return res.json(); })
     .then(function(data) {
@@ -645,15 +665,22 @@ function deleteLogItem(row) {
         sessionLog = sessionLog.filter(function(i) { return i.row !== row; });
         sessionLog.forEach(function(i) { if (i.row > row) i.row = i.row - 1; });
         renderLog();
+      } else if (data.error && data.error.indexOf("mismatch") !== -1) {
+        alert("⚠️ " + data.error);
+        loadSessionLogFromSheet();
       } else {
         alert("❌ Failed to delete: " + (data.error || "unknown error"));
       }
     })
     .catch(function() {
-      alert("⚠️ Connection error. Could not delete.");
+      var doRetry = confirm("⚠️ Connection error. The item may or may not have been deleted. Tap OK to safely retry (won't cause duplicate issues), or Cancel to refresh the log manually.");
+      if (doRetry) {
+        deleteLogItem(row, requestId);
+      } else {
+        loadSessionLogFromSheet();
+      }
     });
 }
-
 function cancelCount() {
   if (!confirm("Cancel this count for " + gondola + "? ALL scanned items for this gondola will be permanently deleted.")) return;
 
