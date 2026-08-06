@@ -442,13 +442,14 @@ function lookupBarcode() {
 
 // ── SAVE SCAN ─────────────────────────────────────────
 let isSaving = false;
-
+let currentScanRequestId = null;
+  
 function generateRequestId() {
   return Date.now() + "-" + Math.random().toString(36).slice(2, 10);
 }
 
 function saveScan(retryPayload, retryId) {
-  if (isSaving) return; // block rapid double-taps
+  if (isSaving) return;
 
   var payload, requestId;
 
@@ -461,7 +462,7 @@ function saveScan(retryPayload, retryId) {
     if (Number(qty) > 9999) { alert("Quantity cannot exceed 9999. Please check for a scanning error."); return; }
     if (!currentProduct) { alert("No product loaded."); return; }
 
-    requestId = generateRequestId();
+    requestId = currentScanRequestId || generateRequestId();
     payload = {
       requestId:   requestId,
       gondola:     gondola,
@@ -482,7 +483,7 @@ function saveScan(retryPayload, retryId) {
 
   setStatus("loading", "💾 Saving to Google Sheet...");
 
-  var savedProduct = currentProduct;
+  var savedProduct = { description: payload.description, uom: payload.uom, numerator: payload.numerator, barcode: payload.barcode };
   var savedQty = payload.qty;
 
   fetch(API_URL, {
@@ -490,17 +491,30 @@ function saveScan(retryPayload, retryId) {
     headers: { "Content-Type": "text/plain" },
     body: JSON.stringify(payload)
   })
-    .then(function(res) { return res.json(); })
-    .then(function(data) {
+    .then(function(res) { return res.text(); })
+    .then(function(text) {
+      var data;
+      try { data = JSON.parse(text); } catch(e) {
+        throw new Error("Unexpected server response");
+      }
+
       if (data.success) {
         setStatus("success", "✅ Saved to " + department);
         addToLog(savedProduct.description, savedQty, savedProduct.uom, data.row, savedProduct.numerator, savedProduct.barcode);
+        currentScanRequestId = null;
         resetScan();
+        isSaving = false;
+        if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = "✔ Save to Sheet"; }
       } else {
-        setStatus("error", "❌ Save failed: " + (data.error || "unknown error"));
+        isSaving = false;
+        if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = "Retry Save"; }
+        var doRetry = confirm("⚠️ Save didn't complete (" + (data.error || "server error") + "). This is safe to retry — it will NOT create a duplicate. Retry now?");
+        if (doRetry) {
+          saveScan(payload, requestId);
+        } else {
+          setStatus("error", "❌ Save failed: " + (data.error || "unknown error"));
+        }
       }
-      isSaving = false;
-      if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = "✔ Save to Sheet"; }
     })
     .catch(function() {
       isSaving = false;
@@ -513,7 +527,6 @@ function saveScan(retryPayload, retryId) {
       }
     });
 }
-
 // ── END SESSION ───────────────────────────────────────
 function endSession() {
   if (!confirm("End session for " + gondola + "? This will mark it as Done.")) return;
@@ -551,6 +564,7 @@ function showProduct(data) {
   document.getElementById("p-mat").textContent  = data.material;
   document.getElementById("product-card").style.display = "block";
   document.getElementById("qty-input").focus();
+  currentScanRequestId = generateRequestId(); // one fixed ID for this pending scan
 }
 
 function hideProduct() {
@@ -561,6 +575,7 @@ function hideProduct() {
 function resetScan() {
   document.getElementById("barcode-input").value = "";
   document.getElementById("qty-input").value = "";
+  currentScanRequestId = null;
   hideProduct();
   setTimeout(function() { setStatus("", ""); }, 2000);
 }
