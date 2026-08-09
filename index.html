@@ -126,7 +126,7 @@
 <div class="screen page-content" id="screen-log">
   <div class="card">
     <h2>📋 Scanned this session</h2>
-    <button class="btn btn-outline" onclick="loadSessionLogFromSheet()" id="btn-refresh-log">🔄 Refresh Log</button>
+    <button class="btn btn-outline" onclick="loadSessionLogFromSheet()" id="btn-refresh-log">🔄✨ Summon Latest Logs</button>
     <ul class="log-list" id="log-list">
       <li class="empty-log">No scans yet.</li>
     </ul>
@@ -274,7 +274,7 @@ function loadSessionLogFromSheet(retryCount) {
   retryCount = retryCount || 0;
 
   var refreshBtn = document.getElementById("btn-refresh-log");
-  if (refreshBtn && retryCount === 0) { refreshBtn.disabled = true; refreshBtn.textContent = "🔄 Refreshing..."; }
+  if (refreshBtn && retryCount === 0) { refreshBtn.disabled = true; refreshBtn.textContent = "🔄🌀 Opening portal to databse... kamu santai jap - Shai"; }
 
   fetch(API_URL + "?action=getgondolalog&department=" + encodeURIComponent(department) + "&gondola=" + encodeURIComponent(gondola))
     .then(function(res) { return res.text(); })
@@ -318,7 +318,7 @@ function loadSessionLogFromSheet(retryCount) {
 
 function resetRefreshButton() {
   var refreshBtn = document.getElementById("btn-refresh-log");
-  if (refreshBtn) { refreshBtn.disabled = false; refreshBtn.textContent = "🔄 Refresh Log"; }
+  if (refreshBtn) { refreshBtn.disabled = false; refreshBtn.textContent = "🔄✨ Summon Latest Logs"; }
 }
 
 function showLogLoadError() {
