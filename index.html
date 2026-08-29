@@ -31,7 +31,14 @@
     .badge { display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: 12px; font-weight: bold; background: #1a73e8; color: white; margin-right: 6px; }
     #video-container { display: none; margin-bottom: 14px; }
     #video-container.visible { display: block; }
-    video { width: 100%; border-radius: 8px; background: #000; }
+    video { width: 100%; border-radius: 8px; background: #000; display: block; }
+    #video-frame { position: relative; }
+    #scan-fun-overlay { position: absolute; inset: 0; pointer-events: none; overflow: hidden; border-radius: 8px; z-index: 5; }
+    #scan-fun-overlay .fun-emoji { position: absolute; font-size: 26px; animation: funFloat 2.6s ease-in-out infinite; text-shadow: 0 1px 4px rgba(0,0,0,0.5); }
+    @keyframes funFloat {
+      0%, 100% { transform: translateY(0) scale(1); opacity: 0.8; }
+      50% { transform: translateY(-10px) scale(1.12); opacity: 1; }
+    }
     .scan-hint { text-align: center; font-size: 13px; color: #888; margin-top: 6px; }
     .status { text-align: center; padding: 10px; border-radius: 8px; font-size: 14px; margin-bottom: 12px; display: none; }
     .status.visible { display: block; }
@@ -103,7 +110,10 @@
     <h2>📷 Scan barcode</h2>
     <button class="btn btn-outline" onclick="startCamera()" id="btn-camera">Open Camera</button>
     <div id="video-container">
-      <video id="video" autoplay muted playsinline></video>
+      <div id="video-frame">
+        <video id="video" autoplay muted playsinline></video>
+        <div id="scan-fun-overlay"></div>
+      </div>
       <p class="scan-hint">Point camera at barcode — it will scan automatically</p>
       <button class="btn btn-gray" style="margin-top:10px" onclick="stopCamera()">Close Camera</button>
     </div>
@@ -403,9 +413,52 @@ function showScreen(id) {
 }
 
 // ── CAMERA ───────────────────────────────────────────
+
+// Purely cosmetic, name-matched easter egg — staffName is free-typed with no real login behind it,
+// so this is not access control, just a bit of fun for a short list of people.
+const STAFF_FUN_THEMES = {
+  "SHAI": ["✨", "🌟", "💫", "✨", "🌟"],
+  "KHAI": ["🕶️", "🎩", "😎", "🕶️", "🎩"],
+  "KIRK": ["🚀", "🛸", "⭐", "🚀", "🛸"],
+  "FELI": ["🐱", "🐾", "🐈", "🐱", "🐾"],
+  "ZETTY": ["⚡", "🔋", "✨", "⚡", "🔋"],
+  "NABILAH": ["👑", "💎", "✨", "👑", "💎"],
+  "SHAQEERA": ["🔥", "🎤", "⭐", "🔥", "🎤"],
+  "TESTSCAN": ["🧪", "🤖", "🔬", "🧪", "🤖"]
+};
+
+// Positions deliberately confined to top/bottom strips only — never the center, where the
+// barcode itself needs to sit for ZXing to actually decode it.
+const FUN_OVERLAY_POSITIONS = [
+  { top: "4%", left: "8%" },
+  { top: "6%", left: "68%" },
+  { bottom: "6%", left: "14%" },
+  { bottom: "4%", left: "62%" },
+  { top: "8%", left: "42%" }
+];
+
+function renderFunOverlay() {
+  const overlay = document.getElementById("scan-fun-overlay");
+  if (!overlay) return;
+  overlay.innerHTML = "";
+
+  const theme = STAFF_FUN_THEMES[(staffName || "").trim().toUpperCase()];
+  if (!theme) return; // no match — overlay just stays empty, screen looks completely normal
+
+  FUN_OVERLAY_POSITIONS.forEach(function(pos, i) {
+    const span = document.createElement("span");
+    span.className = "fun-emoji";
+    span.textContent = theme[i % theme.length];
+    Object.keys(pos).forEach(function(k) { span.style[k] = pos[k]; });
+    span.style.animationDelay = (i * 0.35) + "s";
+    overlay.appendChild(span);
+  });
+}
+
 function startCamera() {
   document.getElementById("video-container").classList.add("visible");
   document.getElementById("btn-camera").style.display = "none";
+  renderFunOverlay();
   setStatus("loading", "Starting camera...");
   try {
     codeReader = new ZXing.BrowserMultiFormatReader();
@@ -467,6 +520,8 @@ function stopCamera() {
   if (codeReader) { codeReader.reset(); codeReader = null; }
   document.getElementById("video-container").classList.remove("visible");
   document.getElementById("btn-camera").style.display = "block";
+  const overlay = document.getElementById("scan-fun-overlay");
+  if (overlay) overlay.innerHTML = "";
 }
 
 // ── BARCODE LOOKUP (live indexed query — no preload) ──
