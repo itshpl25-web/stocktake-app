@@ -416,16 +416,20 @@ function showScreen(id) {
 
 // Purely cosmetic, name-matched easter egg — staffName is free-typed with no real login behind it,
 // so this is not access control, just a bit of fun for a short list of people.
-const STAFF_FUN_THEMES = {
-  "SHAI": ["✨", "🌟", "💫", "✨", "🌟"],
-  "KHAI": ["🕶️", "🎩", "😎", "🕶️", "🎩"],
-  "KIRK": ["🚀", "🛸", "⭐", "🚀", "🛸"],
-  "FELI": ["🐱", "🐾", "🐈", "🐱", "🐾"],
-  "ZETTY": ["⚡", "🔋", "✨", "⚡", "🔋"],
-  "NABILAH": ["👑", "💎", "✨", "👑", "💎"],
-  "SHAQEERA": ["🔥", "🎤", "⭐", "🔥", "🎤"],
-  "TESTSCAN": ["🧪", "🤖", "🔬", "🧪", "🤖"]
-};
+const FUN_TRIGGER_NAMES = ["SHAI", "KHAI", "KIRK", "FELI", "ZETTY", "NABILAH", "SHAQEERA", "TESTSCAN"];
+
+// The theme itself is randomized per camera open, decoupled from the name — anyone on the
+// trigger list can land on any theme, so it stays a surprise rather than "always the same sticker."
+const FUN_THEME_POOL = [
+  ["✨", "🌟", "💫", "✨", "🌟"],
+  ["🕶️", "🎩", "😎", "🕶️", "🎩"],
+  ["🚀", "🛸", "⭐", "🚀", "🛸"],
+  ["🐱", "🐾", "🐈", "🐱", "🐾"],
+  ["⚡", "🔋", "✨", "⚡", "🔋"],
+  ["👑", "💎", "✨", "👑", "💎"],
+  ["🔥", "🎤", "⭐", "🔥", "🎤"],
+  ["🧪", "🤖", "🔬", "🧪", "🤖"]
+];
 
 // Positions deliberately confined to top/bottom strips only — never the center, where the
 // barcode itself needs to sit for ZXing to actually decode it.
@@ -442,8 +446,10 @@ function renderFunOverlay() {
   if (!overlay) return;
   overlay.innerHTML = "";
 
-  const theme = STAFF_FUN_THEMES[(staffName || "").trim().toUpperCase()];
-  if (!theme) return; // no match — overlay just stays empty, screen looks completely normal
+  const isTriggerName = FUN_TRIGGER_NAMES.indexOf((staffName || "").trim().toUpperCase()) !== -1;
+  if (!isTriggerName) return; // no match — overlay just stays empty, screen looks completely normal
+
+  const theme = FUN_THEME_POOL[Math.floor(Math.random() * FUN_THEME_POOL.length)];
 
   FUN_OVERLAY_POSITIONS.forEach(function(pos, i) {
     const span = document.createElement("span");
